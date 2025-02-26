@@ -20,25 +20,31 @@
     import { errorHandler } from "../../biz/errorHandler";
     import type { AppError } from "../../biz/errors";
     import Source from "../../components/Source.svelte";
+    import { apiService } from "../../biz/apiService";
 
 	let { data }: { data: PageData } = $props();
 	let { stationId,date }:{stationId:string|null,date:string|null} = data;
 	let isDisabled=$state(false);
 	console.log(stationId);
+	const mode=getGlobal("run_mode");
 	// 使用calendar实例的store
 	const currentMonth = calendar.currentMonth;
 	let selectedDate = $derived(calendar.selectedDate);
 	// 加载月度预约数据
 	async function loadMonthData(): Promise<Reservation[]> {
 		// 获取整月的预约数据
+		let reservations:Reservation[]=[];
 		try{
-
-			const res = await repository.getReservationsByStationAndMonth(
+		if(mode==="page"){
+			reservations=await apiService.get(`/reservations/station/${stationId}?month=${$currentMonth}`);
+		}else{
+			reservations=await repository.getReservationsByStationAndMonth(
 				$currentMonth,
 				parseInt(stationId as string),
 			);
-			console.log(res);
-			return res;
+		}
+		return reservations;
+
 		}catch(e){
 			errorHandler.handleError(e as AppError);
 			return [];
@@ -58,14 +64,26 @@
 	let photoAvailable = $state(false);
 	async function loadStationInfo(stationId: string,loadingIndicator:number,selectedDate:string): Promise<Station> {
 		console.log("start to load StationInfo");
-		const stationInfos: Station[] = await repository.getStationById(
-			parseInt(stationId),
-		);
+		let stationInfos:Station[];
+		if(mode==="page"){
+			 const station= await apiService.get(`/stations/${stationId}`);
+			 stationInfos=[station];
+		}else{
+			 stationInfos= await repository.getStationById(
+				parseInt(stationId),
+			);
+		}
 		console.log(stationInfos);
 		photoAvailable = await exists(getPhotoPath(stationInfos[0].photo_path));
 		console.log(photoAvailable);
 		//获取sevents并filter
-		const sevents=await repository.getSeventsByStationId(parseInt(stationId));
+		let sevents=[];
+		if(mode==="page"){
+			 const sevent=await apiService.get(`/sevents/station/${stationId}`);
+			 sevents=[sevent];
+		}else{
+		 sevents=await repository.getSeventsByStationId(parseInt(stationId));
+		}
 		console.log(sevents);
 		const filteredSevents=sevents.filter(s=>new Date(s.from_date)<=new Date(selectedDate)&&new Date(s.to_date)>=new Date(selectedDate));
 		console.log(filteredSevents);

@@ -15,6 +15,7 @@
     import About from "../components/About.svelte";
     import type { AppError } from "../biz/errors";
     import { init } from "../biz/operation";
+    import { apiService } from "../biz/apiService";
   // 使用calendar实例的store
   const currentMonth = calendar.currentMonth;
   const mode=getGlobal("run_mode");
@@ -28,10 +29,9 @@
       
       // 获取整月的预约数据
       // monthlyReservations = [];
-      
       if(mode==="page"){
-        
-        return [];
+        const data=await apiService.get(`/reservations/month/${$currentMonth}`);
+        return data;
       }else{
         const res = await repository.getReservationsByMonth($currentMonth);
         return res;
@@ -79,6 +79,13 @@
   const init_page=async()=>{
     if(mode==="page"){
       console.log("page mode")
+      const settings=await apiService.get("/general/settings");
+      setGlobal("tests",settings.tests);
+      setGlobal("project_engineers",settings.project_engineers);
+      setGlobal("testing_engineers",settings.testing_engineers);
+      setGlobal("loadSetting",settings.loadSetting);
+      setGlobal("station_orders",settings.station_orders);
+      setGlobal("user",{user:"page",machine:""})
     }else{
       
       const user=getGlobal("user");

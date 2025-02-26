@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Dapper;
 using emc_api.Models;
 using emc_api.Services;
@@ -9,11 +10,13 @@ namespace emc_api.Repositories
     {
         private readonly SqliteConnection _connection;
         private readonly ILoggerService _logger;
+        private readonly IConfiguration _configuration;
 
-        public BizRepository(SqliteConnection conn, ILoggerService logger)
+        public BizRepository(SqliteConnection conn, ILoggerService logger, IConfiguration configuration)
         {
             _connection = conn;
             _logger = logger;
+            _configuration = configuration;
         }
 
         public async ValueTask DisposeAsync()
@@ -355,5 +358,61 @@ WHERE NOT EXISTS (
                 return false;
             }
         }
+
+        public async Task<Settings> GetSettingsAsync()
+        {
+            var dataDir = _configuration["data:dir"];
+            if (string.IsNullOrEmpty(dataDir))
+                throw new InvalidOperationException("Configuration 'data:dir' is not set in appsettings.json");
+
+            var filePath = Path.Combine(dataDir, "settings.json");
+
+            using var reader = new StreamReader(filePath, System.Text.Encoding.UTF8);
+            var jsonText = reader.ReadToEnd();
+            var settings = JsonSerializer.Deserialize<Settings>(jsonText);
+            await _logger.LogInformationAsync(settings.ToString());
+            return settings;
+        }
+
+        public async Task<IEnumerable<Sevent>> GetAllSeventsAsync()
+        {
+            var sevents = await _connection.QueryAsync<Sevent>("SELECT * FROM s_events");
+            Console.WriteLine("allaa");
+            Console.WriteLine(sevents.Count());
+            return sevents;
+        }
+        public Task<Sevent> GetSeventByIdAsync(int id)
+        {
+            return _connection.QueryFirstOrDefaultAsync<Sevent>("SELECT * FROM s_events WHERE id = @Id", new { Id = id });
+        }
+
+        public async Task<bool> CreateSeventAsync(SeventDto sevent)
+        {
+            var sql = @"INSERT INTO s_events (name, from_date, to_date, station_id, updated_By)
+                   VALUES (@Name, @FromDate, @ToDate, @StationId,@UpdatedBy)";
+            var result = await _connection.ExecuteAsync(sql, sevent);
+            return result > 0;
+        }
+
+        public async Task<bool> UpdateSeventAsync(SeventDto sevent)
+        {
+            var sql = @"UPDATE s_events SET
+                           name = @Name,
+                           from_date = @FromDate,
+                           to_date = @ToDate,
+                           station_id = @StationId,
+                           updated_by = @UpdatedBy
+                           WHERE id = @Id";
+            var result = await _connection.ExecuteAsync(sql, sevent);
+            return result > 0;
+        }
+
+        public async Task<bool> DeleteSeventAsync(int id)
+        {
+            var sql = "DELETE FROM s_events WHERE id = @Id";
+            var result = await _connection.ExecuteAsync(sql, new { Id = id });
+            return result > 0;
+        }
+
     }
 }

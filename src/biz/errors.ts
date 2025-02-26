@@ -18,6 +18,9 @@ export enum ErrorCode {
     INVALID_PHONE_FORMAT = 3003,
 
     ExportExcelFileError = 4001,
+    API_ERROR = 4002,
+    API_PARSE_ERROR = 4003,
+    API_REQUEST_ERROR = 4004,
 
     // 系统错误 (9000-9999)
     UNKNOWN_ERROR = 9999

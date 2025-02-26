@@ -17,73 +17,101 @@
     import type { AppError } from "../../biz/errors";
     import { init } from "../../biz/operation";
     import { get } from "svelte/store";
+    import { apiService } from "../../biz/apiService";
   let { data }: { data: PageData } = $props();
+  const mode=getGlobal("run_mode");
+  console.log(mode);
   
   const initDate = data.date ?? new Date().toISOString().split("T")[0];
   calendar.setDate(initDate);
   const selectedDate = $derived(calendar.selectedDate);
   async function loadStations(): Promise<Station[]> {
     let stations: Station[] = [];
-    // stations=[]
+    let stationEntities:Station[]=[];
+    let sevents:Sevent[]=[];
     try{
+    if(getGlobal("run_mode")==="page"){
+       stationEntities=await apiService.get(`/stations`);
+       sevents=await apiService.get(`/sevents`);
+    }else{
 
-      const stationEntities = await repository.getAllStations();
-      const sevents=await repository.getAllSevents();
-      console.log(stationEntities)
-      //获取orders
-      const orders:{id:number,seq:number}[]=getGlobal("station_orders");
-      console.log(orders)
-      //结合orders给stations排序
-      if (orders&&orders.length>0&&stationEntities.length>0) {
-        const sortedStations = stationEntities.map((station:Station) => {
-          const seq=orders.find(o=>o.id===station.id)
-          return {...station,sequence_no:seq?.seq??1}
-        });
-        stations=[...sortedStations].sort((a,b)=>a.sequence_no-b.sequence_no)
-      }else{
-        stations=[...stationEntities]
+        
+        stationEntities = await repository.getAllStations();
+        sevents=await repository.getAllSevents();
       }
-      //结合sevents给stations添加状态
-      stations=stations.map(station=>{
-        const sevents_per_station=sevents.filter(sevent=>sevent.station_id===station.id)
-        if(sevents_per_station.length===0){
-          return {...station,status:'in_service'}
+      console.log(stationEntities)
+        //获取orders
+        const orders:{id:number,seq:number}[]=getGlobal("station_orders");
+        console.log(orders)
+        //结合orders给stations排序
+        if (orders&&orders.length>0&&stationEntities.length>0) {
+          const sortedStations = stationEntities.map((station:Station) => {
+            const seq=orders.find(o=>o.id===station.id)
+            return {...station,sequence_no:seq?.seq??1}
+          });
+          stations=[...sortedStations].sort((a,b)=>a.sequence_no-b.sequence_no)
         }else{
-          const isUnavailable=sevents_per_station.some(sevent=>new Date(get(selectedDate))>=new Date(sevent.from_date)&&new Date(get(selectedDate))<=new Date(sevent.to_date))
-          if(isUnavailable){
-            const unavailableSevent=sevents_per_station.find(sevent=>new Date(get(selectedDate))>=new Date(sevent.from_date)&&new Date(get(selectedDate))<=new Date(sevent.to_date))
-            return {...station,status:unavailableSevent?.name??'unavailable'}
-          }else{
-            return {...station,status:'in_service'}
-          }
+          stations=[...stationEntities]
         }
-      })
-      
-      return stations
-    }catch(e){
+        //结合sevents给stations添加状态
+        if(sevents.length>0){
 
-      errorHandler.handleError(e as AppError);
-      return [];
-    }
+          stations=stations.map(station=>{
+            const sevents_per_station=sevents.filter(sevent=>sevent.station_id===station.id)
+            if(sevents_per_station.length===0){
+              return {...station,status:'in_service'}
+            }else{
+              const isUnavailable=sevents_per_station.some(sevent=>new Date(get(selectedDate))>=new Date(sevent.from_date)&&new Date(get(selectedDate))<=new Date(sevent.to_date))
+              if(isUnavailable){
+                const unavailableSevent=sevents_per_station.find(sevent=>new Date(get(selectedDate))>=new Date(sevent.from_date)&&new Date(get(selectedDate))<=new Date(sevent.to_date))
+                return {...station,status:unavailableSevent?.name??'unavailable'}
+              }else{
+                return {...station,status:'in_service'}
+              }
+            }
+          })
+          
+        }
+        return stations
+      }catch(e){
+        
+        errorHandler.handleError(e as AppError);
+        return [];
+      }
   }
   async function loadReservations(date: string) {
     let reservations: Reservation[] = [];
-    try{
-
-      reservations = await repository.getReservationsByDate(date);
+    if(getGlobal("run_mode")==="page"){
+      reservations = await apiService.get(`/reservations/${date}`);
       return reservations;
-    }catch(e){
-      errorHandler.handleError(e as AppError);
-      return [];
+    }else{
+      
+      try{
+        
+        reservations = await repository.getReservationsByDate(date);
+        return reservations;
+      }catch(e){
+        errorHandler.handleError(e as AppError);
+        return [];
+      }
+    }
+  }
+  const loadSevents=async()=>{
+    if(getGlobal("run_mode")==="page"){
+      return await apiService.get(`/sevents`);
+    }else{
+      return await repository.getAllSevents();
     }
   }
 
   const init_data=async(date:string,loadingIndicator:number)=>{
     
     const stations=await loadStations();
-    console.log(stations)
+    console.log("stations:",stations)
     const res=await loadReservations(date);
-    const sevents=await repository.getAllSevents();
+    console.log("reservations:",res);
+    const sevents=await loadSevents();
+    console.log("sevents:",sevents)
     return {stations,res,sevents}
   }
 
@@ -95,7 +123,9 @@
     const tests=getGlobal("tests");
     const project_engineers=getGlobal("project_engineers");
     const test_engineers=getGlobal("testing_engineers");
+    console.log(user,tests,project_engineers,test_engineers)
     if(!user||!tests||!project_engineers||!test_engineers){
+      console.log("start init")
       await init();
     }
     // sleep for 3 seconds

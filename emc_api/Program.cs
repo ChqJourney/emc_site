@@ -98,6 +98,9 @@ builder.WebHost.ConfigureKestrel(options => {
 });
 var app = builder.Build();
 // Add global exception handling middleware
+// 配置静态文件和SPA fallback
+app.UseDefaultFiles();
+app.UseStaticFiles();
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 app.UseAuthentication();
 app.UseAuthorization();
@@ -114,10 +117,7 @@ app.UseCors("AllowAll");
 
 app.UseSerilogRequestLogging();
 
-// 配置静态文件和SPA fallback
-app.UseDefaultFiles();
-app.UseStaticFiles();
-app.MapFallbackToFile("index.html");
+// app.MapFallbackToFile("index.html");
 
 // 获取局域网IP和server port，并写入portal.txt
 var hostEntry = Dns.GetHostEntry(Dns.GetHostName());

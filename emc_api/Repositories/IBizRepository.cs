@@ -1,3 +1,4 @@
+using System.Text.Json.Nodes;
 using emc_api.Models;
 
 namespace emc_api.Repositories
@@ -19,6 +20,12 @@ namespace emc_api.Repositories
         Task<bool> CreateStationAsync(Station station);
         Task<bool> UpdateStationAsync(Station station);
         Task<bool> DeleteStationAsync(int id);
+        Task<IEnumerable<Sevent>> GetAllSeventsAsync();
+        Task<bool> CreateSeventAsync(SeventDto sevent);
+        Task<bool> UpdateSeventAsync(SeventDto sevent);
+        Task<Sevent> GetSeventByIdAsync(int id);
+        Task<bool> DeleteSeventAsync(int id);
         Task<bool> CheckDatabaseConnectionAsync();
+        Task<Settings> GetSettingsAsync();
     }
 }
