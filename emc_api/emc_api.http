@@ -1,0 +1,68 @@
+@emc_api_HostAddress = http://0.0.0.0:5000
+
+GET {{emc_api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
+
+POST {{emc_api_HostAddress}}/api/user HTTP/1.1
+username:patri,
+machinename:Patrick_PC
+Content-Type: application/json
+
+{
+    "username":"patri",
+    "machinename":"pwin",
+    "team":"lum",
+    "role":"admin",
+    "fullname":"Patrick Chen"
+}
+
+###
+
+POST {{emc_api_HostAddress}}/api/reservations HTTP/1.1
+username:patrickc,
+machinename:eselpc027
+Content-Type: application/json
+
+{
+    "reservation_date": "2025-02-13",
+    "time_slot": "T3,T5",
+    "station_id": 1,
+    "client_name": "Client A",
+    "product_name": "Product X",
+    "tests": "Test details here",
+    "job_no": "JOB12345",
+    "project_engineer": "Engineer1",
+    "testing_engineer": "Engineer2",
+    "purpose_description": "Routine test",
+    "contact_name": "John Doe",
+    "contact_phone": "+123456789",
+    "sales": "Sales Person",
+    "reservate_by": "patrickc",
+    "reservation_status": "normal"
+}
+
+###
+POST {{emc_api_HostAddress}}/api/station HTTP/1.1
+username:patrickc,
+machinename:eselpc027
+Content-Type: application/json
+
+{
+    "reservation_date": "2025-02-13",
+    "time_slot": "T3,T5",
+    "station_id": 1,
+    "client_name": "Client A",
+    "product_name": "Product X",
+    "tests": "Test details here",
+    "job_no": "JOB12345",
+    "project_engineer": "Engineer1",
+    "testing_engineer": "Engineer2",
+    "purpose_description": "Routine test",
+    "contact_name": "John Doe",
+    "contact_phone": "+123456789",
+    "sales": "Sales Person",
+    "reservate_by": "patrickc",
+    "reservation_status": "normal"
+}
