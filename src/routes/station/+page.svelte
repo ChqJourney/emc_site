@@ -8,14 +8,11 @@
 		Station,
 	} from "../../biz/types";
 	import { onMount } from "svelte";
-	import { repository } from "../../biz/database";
 	import { modalStore } from "../../components/modalStore";
 	import ReservationInfo from "../../components/ReservationInfo.svelte";
-	import { load } from "@tauri-apps/plugin-store";
 	import { convertFileSrc } from "@tauri-apps/api/core";
 	import type { PageData } from "./$types";
-	import { getGlobal } from "../../biz/globalStore";
-	import { init } from "../../biz/operation";
+	import { getGlobal, setGlobal } from "../../biz/globalStore";
 	import { exists } from "@tauri-apps/plugin-fs";
     import { errorHandler } from "../../biz/errorHandler";
     import type { AppError } from "../../biz/errors";
@@ -35,14 +32,8 @@
 		// 获取整月的预约数据
 		let reservations:Reservation[]=[];
 		try{
-		if(mode==="page"){
-			reservations=await apiService.get(`/reservations/station/${stationId}?month=${$currentMonth}`);
-		}else{
-			reservations=await repository.getReservationsByStationAndMonth(
-				$currentMonth,
-				parseInt(stationId as string),
-			);
-		}
+			reservations=await apiService.get(`/reservations/station?id=${stationId}&month=${$currentMonth}`);
+		
 		return reservations;
 
 		}catch(e){
@@ -65,46 +56,41 @@
 	async function loadStationInfo(stationId: string,loadingIndicator:number,selectedDate:string): Promise<Station> {
 		console.log("start to load StationInfo");
 		let stationInfos:Station[];
-		if(mode==="page"){
-			 const station= await apiService.get(`/stations/${stationId}`);
-			 stationInfos=[station];
-		}else{
-			 stationInfos= await repository.getStationById(
-				parseInt(stationId),
-			);
+		try{
+
+			const station= await apiService.get(`/stations/${stationId}`);
+			stationInfos=[station];
+			
+			console.log(stationInfos);
+			photoAvailable =getPhotoPath(stationInfos[0].photo_path)!=="";
+			console.log(photoAvailable);
+			//获取sevents并filter
+			let sevents=[];
+			try {
+				const seventsData = await apiService.get(`/sevents/station/${stationId}`);
+				sevents = Array.isArray(seventsData) ? seventsData : [];
+			} catch (error) {
+				console.error("Error fetching events:", error);
+			}
+			
+			console.log(sevents);
+			const filteredSevents=sevents.filter(s=>new Date(s.from_date)<=new Date(selectedDate)&&new Date(s.to_date)>=new Date(selectedDate));
+			console.log(filteredSevents);
+			stationInfos[0].status=filteredSevents.length===0?'in_service':filteredSevents[0].name;
+			isDisabled=stationInfos[0].status!=='in_service';
+			console.log(stationInfos);
+			return stationInfos[0];
+		}catch(e){
+			errorHandler.handleError(e as AppError);
+			return {} as Station;
 		}
-		console.log(stationInfos);
-		photoAvailable = await exists(getPhotoPath(stationInfos[0].photo_path));
-		console.log(photoAvailable);
-		//获取sevents并filter
-		let sevents=[];
-		if(mode==="page"){
-			 const sevent=await apiService.get(`/sevents/station/${stationId}`);
-			 sevents=[sevent];
-		}else{
-		 sevents=await repository.getSeventsByStationId(parseInt(stationId));
-		}
-		console.log(sevents);
-		const filteredSevents=sevents.filter(s=>new Date(s.from_date)<=new Date(selectedDate)&&new Date(s.to_date)>=new Date(selectedDate));
-		console.log(filteredSevents);
-		stationInfos[0].status=filteredSevents.length===0?'in_service':filteredSevents[0].name;
-		isDisabled=stationInfos[0].status!=='in_service';
-		console.log(stationInfos);
-		return stationInfos[0];
 	}
 
 	let loadingIndicator = $state(0);
 	
-	const handlePhotoPath = (path: string) => {
-		return convertFileSrc(getPhotoPath(path));
-	};
+
 	const getPhotoPath = (path: string) => {
-		if (path.includes(":")) {
-			return path;
-		} else {
-			const remote_source = getGlobal("remote_source");
-			return `${remote_source}\\station_pics\\${path}`;
-		}
+			return `/station_pics/${path}`;
 	};
 	// Add keyboard event listener for day navigation
 	const handleKeydown = (event: KeyboardEvent) => {
@@ -139,15 +125,15 @@
 	});
 
 	const init_page=async()=>{
-		const user=getGlobal("user");
-		const tests=getGlobal("tests");
-		const project_engineers=getGlobal("project_engineers");
-		const test_engineers=getGlobal("testing_engineers");
-		if(!user||!tests||!project_engineers||!test_engineers){
-			await init();
-		}
-		await new Promise(resolve => setTimeout(resolve, 200));
-	}
+      const settings=await apiService.get("/general/settings");
+      setGlobal("tests",settings.tests);
+      setGlobal("project_engineers",settings.project_engineers);
+      setGlobal("testing_engineers",settings.testing_engineers);
+      setGlobal("loadSetting",settings.loadSetting);
+      setGlobal("station_orders",settings.station_orders);
+      setGlobal("user",{user:"page",machine:""})
+    await new Promise(resolve => setTimeout(resolve, 200));
+  }
 </script>
 
 {#snippet station_badge(status:string)}
@@ -211,7 +197,7 @@
 						</div>
 						{#if photoAvailable}
 							<img
-								src={handlePhotoPath(stationInfo.photo_path)}
+								src={stationInfo.photo_path}
 								class="station-image"
 								alt="station_pic"
 							/>
@@ -239,7 +225,7 @@
       aria-label="about"
     >
       <span class="tooltip">数据源设置</span>
-      <svg class="logo" style="width: 30px;height: 30px" fill="#fbc400" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" width="200" height="200"><path d="M369.777778 455.111111h284.444444c17.066667 0 28.444444 11.377778 28.444445 28.444445s-11.377778 28.444444-28.444445 28.444444h-284.444444c-17.066667 0-28.444444-11.377778-28.444445-28.444444s11.377778-28.444444 28.444445-28.444445z"></path><path d="M56.888889 483.555556C56.888889 625.777778 170.666667 739.555556 312.888889 739.555556H398.222222v-56.888889H312.888889C204.8 682.666667 113.777778 591.644444 113.777778 483.555556S204.8 284.444444 312.888889 284.444444H398.222222V227.555556H312.888889C170.666667 227.555556 56.888889 341.333333 56.888889 483.555556zM711.111111 227.555556H625.777778v56.888888h85.333333C819.2 284.444444 910.222222 375.466667 910.222222 483.555556S819.2 682.666667 711.111111 682.666667H625.777778v56.888889h85.333333C853.333333 739.555556 967.111111 625.777778 967.111111 483.555556S853.333333 227.555556 711.111111 227.555556z"></path></svg>
+      <svg class="logo" style="width: 30px;height: 30px" fill="#fbc400" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" width="200" height="200"><path d="M369.777778 455.111111h284.444444c17.066667 0 28.444444 11.377778 28.444445 28.444445s-11.377778 28.444444-28.444445 28.444444h-284.444444c-17.066667 0-28.444444-11.377778-28.444445-28.444444s11.377778-28.444444 28.444445-28.444444z"></path><path d="M56.888889 483.555556C56.888889 625.777778 170.666667 739.555556 312.888889 739.555556H398.222222v-56.888889H312.888889C204.8 682.666667 113.777778 591.644444 113.777778 483.555556S204.8 284.444444 312.888889 284.444444H398.222222V227.555556H312.888889C170.666667 227.555556 56.888889 341.333333 56.888889 483.555556zM711.111111 227.555556H625.777778v56.888888h85.333333C819.2 284.444444 910.222222 375.466667 910.222222 483.555556S819.2 682.666667 711.111111 682.666667H625.777778v56.888889h85.333333C853.333333 739.555556 967.111111 625.777778 967.111111 483.555556S853.333333 227.555556 711.111111 227.555556z"></path></svg>
     </button>
 		</div>
 	</header>
@@ -388,7 +374,7 @@
 		{/await}
 	</div>
 	{:catch error}
-	<div>{"Error: " + error.message}</div>
+	<div>{"Error: " + error.message+" "+error.details}</div>
 	{/await}
 </div>
 
@@ -590,11 +576,6 @@
 		height: 8px;
 		background-color: rgba(0, 0, 0, 0.8);
 		z-index: 5000;
-	}
-	.tooltip-container:hover .tooltip-bottom {
-		opacity: 1;
-		visibility: visible;
-		transform: translateX(50%) translateY(0%);
 	}
 	.tooltip-right {
 		position: absolute;

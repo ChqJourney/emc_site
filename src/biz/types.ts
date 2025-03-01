@@ -13,8 +13,8 @@ export interface Reservation {
     sales: string;
     project_engineer: string;
     testing_engineer: string;
-    updated_On:Date;
-    created_On:Date;
+    updated_on:Date;
+    created_on:Date;
     reservate_by: string;
     reservation_status: string;
 }
@@ -98,7 +98,7 @@ export interface SeventDTO{
     to_date:string;
     station_id:number;
     created_By:string;
-    update_By:string;
+    updated_By:string;
 }
 export interface Sevent{
     id:number;
@@ -106,8 +106,8 @@ export interface Sevent{
     from_date:string;
     to_date:string;
     station_id:number;
-    updated_On:Date;
-    created_On:Date;
-    created_By:string;
-    update_By:string;
+    created_on:string;
+    updated_on:string;
+    created_by:string;
+    updated_by:string;
 }

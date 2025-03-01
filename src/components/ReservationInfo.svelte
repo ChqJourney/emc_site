@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { repository } from '../biz/database';
+    import { apiService } from '../biz/apiService';
     import { errorHandler } from '../biz/errorHandler';
     import type { AppError } from '../biz/errors';
     import type { Reservation } from '../biz/types';
@@ -28,12 +28,13 @@
       }
     }
     const formatTime = (date: Date) => {
+      
       return date.toString().substring(0, 16);
     }
     const getStationName=async(id:number)=>{
         try{
-          const station=await repository.getStationById(id);
-          return station[0].name
+          const station=await apiService.get(`/stations/${id}`);
+          return station.name
         }catch(e){
             errorHandler.handleError(e as AppError);
         }
@@ -92,36 +93,36 @@
     {#if showDetails}
     <div class="info-item">
       <span class="label">产品名称：</span>
-      <span class="value">{reservation.product_name}</span>
+      <span class="value">{reservation.product_name??""}</span>
     </div>
     <div class="info-item purpose">
       <span class="label">用途描述：</span>
-      <span class="value">{reservation.purpose_description}</span>
+      <span class="value">{reservation.purpose_description??""}</span>
     </div>
     <div class="info-item">
       <span class="label">联系人：</span>
-      <span class="value">{reservation.contact_name}</span>
+      <span class="value">{reservation.contact_name??""}</span>
     </div>
     
     <div class="info-item">
       <span class="label">联系电话：</span>
-      <span class="value">{reservation.contact_phone}</span>
+      <span class="value">{reservation.contact_phone??""}</span>
     </div>
     <div class="info-item">
       <span class="label">负责销售：</span>
-      <span class="value">{reservation.sales}</span>
+      <span class="value">{reservation.sales??""}</span>
     </div>
     <div class="info-item">
       <span class="label">创建：</span>
-      <span class="value">{reservation.reservate_by}</span>
+      <span class="value">{reservation.reservate_by??""}</span>
     </div>
     <div class="info-item">
       <span class="label">创建时间：</span>
-      <span class="value">{formatTime(reservation.created_On)}</span>
+      <span class="value">{formatTime(reservation.created_on)}</span>
     </div>
     <div class="info-item">
       <span class="label">修改时间：</span>
-      <span class="value">{formatTime(reservation.updated_On)}</span>
+      <span class="value">{formatTime(reservation.updated_on)}</span>
     </div>
     
     {/if}

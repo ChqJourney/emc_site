@@ -1,20 +1,13 @@
 <script lang="ts">
   import { goto } from "$app/navigation";
-  import { repository } from "../biz/database";
   import type { Reservation, User } from "../biz/types";
   import { onMount } from "svelte";
   import { calendar } from "../biz/calendar";
-  import { invoke } from "@tauri-apps/api/core";
-  import { load } from "@tauri-apps/plugin-store";
-  import { exists, readTextFile } from "@tauri-apps/plugin-fs";
-  import { message, open } from "@tauri-apps/plugin-dialog";
-  import { getCurrentWindow } from "@tauri-apps/api/window";
   import { getGlobal, setGlobal } from "../biz/globalStore";
     import { modalStore } from "../components/modalStore";
     import { errorHandler } from "../biz/errorHandler";
     import About from "../components/About.svelte";
     import type { AppError } from "../biz/errors";
-    import { init } from "../biz/operation";
     import { apiService } from "../biz/apiService";
   // 使用calendar实例的store
   const currentMonth = calendar.currentMonth;
@@ -29,13 +22,9 @@
       
       // 获取整月的预约数据
       // monthlyReservations = [];
-      if(mode==="page"){
         const data=await apiService.get(`/reservations/month/${$currentMonth}`);
         return data;
-      }else{
-        const res = await repository.getReservationsByMonth($currentMonth);
-        return res;
-      }
+     
     }catch(e){
       errorHandler.handleError(e as AppError);
       return [];
@@ -54,31 +43,8 @@
   const firstDayOfMonth = $derived(calendar.getFirstDayOfMonth($currentMonth));
   const calendarDays = $derived(calendar.getCalendarDays($currentMonth));
   const monthDisplay = $derived(calendar.getMonthDisplay($currentMonth));
-
-  // async function logVisiting(u: User) {
-  //   console.log(u);
-  //   const vistings = await repository.getVistingByUserAndMachine(
-  //     u.user,
-  //     u.machine,
-  //   );
-  //   console.log(vistings);
-  //   if (vistings.length > 0) {
-  //     console.log("count+1")
-  //     vistings[0].visit_count += 1;
-  //     vistings[0].last_visit_time = new Date().toISOString();
-  //     await repository.updateVisting(vistings[0]);
-  //   } else {
-  //     await repository.createVisting({
-  //       visit_user: u.user,
-  //       visit_machine: u.machine,
-  //       visit_count: 1,
-  //     });
-  //   }
-  // }
  
   const init_page=async()=>{
-    if(mode==="page"){
-      console.log("page mode")
       const settings=await apiService.get("/general/settings");
       setGlobal("tests",settings.tests);
       setGlobal("project_engineers",settings.project_engineers);
@@ -86,16 +52,6 @@
       setGlobal("loadSetting",settings.loadSetting);
       setGlobal("station_orders",settings.station_orders);
       setGlobal("user",{user:"page",machine:""})
-    }else{
-      
-      const user=getGlobal("user");
-      const tests=getGlobal("tests");
-      const project_engineers=getGlobal("project_engineers");
-      const test_engineers=getGlobal("testing_engineers");
-      if(!user||!tests||!project_engineers||!test_engineers){
-        await init();
-      }
-    }
     await new Promise(resolve => setTimeout(resolve, 200));
   }
   // Add keyboard event listener for month navigation
@@ -252,10 +208,30 @@
             {/each}
           </div>
         </div>
+      {:catch error}
+        <div class="error-container">
+          <div class="error-icon">❌</div>
+          <div class="error-content">
+            <h3 class="error-title">抱歉，出现了问题</h3>
+            <p class="error-message">{error.message}</p>
+          </div>
+          <button class="retry-button" onclick={() => window.location.reload()}>
+            重新加载
+          </button>
+        </div>
       {/await}
     </div>
   {:catch error}
-    <div>{"Error: " + error.message}</div>
+    <div class="error-container">
+      <div class="error-icon">❌</div>
+      <div class="error-content">
+        <h3 class="error-title">抱歉，出现了问题</h3>
+        <p class="error-message">{error.message+" "+error.details}</p>
+      </div>
+      <button class="retry-button" onclick={() => window.location.reload()}>
+        重新加载
+      </button>
+    </div>
   {/await}
 </div>
 
@@ -534,5 +510,52 @@
   @keyframes spin {
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
+  }
+
+  .error-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+    margin: 2rem auto;
+  }
+
+  .error-icon {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    color: #f44336;
+  }
+
+  .error-content {
+    margin-bottom: 1.5rem;
+  }
+
+  .error-title {
+    font-size: 1.5rem;
+    color: #d32f2f;
+    margin: 0 0 0.5rem 0;
+  }
+
+  .error-message {
+    color: #616161;
+    margin: 0;
+    font-size: 1rem;
+    line-height: 1.5;
+  }
+
+  .retry-button {
+    background-color: #2196f3;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 0.5rem 1.5rem;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: background-color 0.3s;
+  }
+
+  .retry-button:hover {
+    background-color: #1976d2;
   }
 </style>

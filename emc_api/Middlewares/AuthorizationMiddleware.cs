@@ -28,12 +28,12 @@ namespace emc_api.Middleware
             var username = Request.Headers["username"].ToString();
             var machinename = Request.Headers["machinename"].ToString();
 
-            if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(machinename))
-            {
-                Console.WriteLine(username);
-                Console.WriteLine(machinename);
-                return AuthenticateResult.Fail("Missing username or machinename header.");
-            }
+            // if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(machinename))
+            // {
+            //     Console.WriteLine(username);
+            //     Console.WriteLine(machinename);
+            //     return AuthenticateResult.Fail("Missing username or machinename header.");
+            // }
 
             var user =await _userRepository.GetUserAsync(username, machinename);
             

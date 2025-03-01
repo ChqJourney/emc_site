@@ -1,6 +1,5 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { repository } from "../../biz/database";
   import type {
     Reservation,
     Sevent,
@@ -11,11 +10,10 @@
   import { calendar } from "../../biz/calendar";
   import { modalStore } from "../../components/modalStore";
   import ReservationInfo from "../../components/ReservationInfo.svelte";
-    import { getGlobal } from "../../biz/globalStore";
+    import { getGlobal, setGlobal } from "../../biz/globalStore";
     import { errorHandler } from "../../biz/errorHandler";
     import Source from "../../components/Source.svelte";
     import type { AppError } from "../../biz/errors";
-    import { init } from "../../biz/operation";
     import { get } from "svelte/store";
     import { apiService } from "../../biz/apiService";
   let { data }: { data: PageData } = $props();
@@ -30,15 +28,9 @@
     let stationEntities:Station[]=[];
     let sevents:Sevent[]=[];
     try{
-    if(getGlobal("run_mode")==="page"){
        stationEntities=await apiService.get(`/stations`);
        sevents=await apiService.get(`/sevents`);
-    }else{
-
-        
-        stationEntities = await repository.getAllStations();
-        sevents=await repository.getAllSevents();
-      }
+   
       console.log(stationEntities)
         //获取orders
         const orders:{id:number,seq:number}[]=getGlobal("station_orders");
@@ -81,27 +73,26 @@
   }
   async function loadReservations(date: string) {
     let reservations: Reservation[] = [];
-    if(getGlobal("run_mode")==="page"){
+   
+    try{
       reservations = await apiService.get(`/reservations/${date}`);
       return reservations;
-    }else{
-      
-      try{
-        
-        reservations = await repository.getReservationsByDate(date);
-        return reservations;
       }catch(e){
         errorHandler.handleError(e as AppError);
         return [];
       }
-    }
-  }
+    
+  }     
   const loadSevents=async()=>{
-    if(getGlobal("run_mode")==="page"){
-      return await apiService.get(`/sevents`);
-    }else{
-      return await repository.getAllSevents();
-    }
+    let sevents:Sevent[]=[];
+    try{
+      sevents=await apiService.get(`/sevents`);
+      return sevents;
+      }catch(e){
+        errorHandler.handleError(e as AppError);
+        return [];
+      }
+    
   }
 
   const init_data=async(date:string,loadingIndicator:number)=>{
@@ -118,19 +109,15 @@
 
   let loadingIndicator = $state(0);
  
-  const ini_page=async()=>{
-    const user=getGlobal("user");
-    const tests=getGlobal("tests");
-    const project_engineers=getGlobal("project_engineers");
-    const test_engineers=getGlobal("testing_engineers");
-    console.log(user,tests,project_engineers,test_engineers)
-    if(!user||!tests||!project_engineers||!test_engineers){
-      console.log("start init")
-      await init();
-    }
-    // sleep for 3 seconds
-    await new Promise(resolve => setTimeout(resolve, 100));
-
+  const init_page=async()=>{
+      const settings=await apiService.get("/general/settings");
+      setGlobal("tests",settings.tests);
+      setGlobal("project_engineers",settings.project_engineers);
+      setGlobal("testing_engineers",settings.testing_engineers);
+      setGlobal("loadSetting",settings.loadSetting);
+      setGlobal("station_orders",settings.station_orders);
+      setGlobal("user",{user:"page",machine:""})
+    await new Promise(resolve => setTimeout(resolve, 200));
   }
   
   // Add keyboard event listener for day navigation
@@ -270,7 +257,7 @@ style="text-align:left;font-size:12px;"
 {/snippet}
 
 <main class="container">
-  {#await ini_page()}
+  {#await init_page()}
   <div class="loading-container">
     <div class="loading-spinner-wrapper">
       <div class="loading-spinner"></div>
@@ -367,7 +354,12 @@ style="text-align:left;font-size:12px;"
   <div class="table-container">
     <div class="table-wrapper">
       {#await init_data($selectedDate,loadingIndicator)}
-        <div>Loading...</div>
+      <div class="loading-container">
+        <div class="loading-spinner-wrapper">
+          <div class="loading-spinner"></div>
+        </div>
+        <span class="loading-text">加载中...</span>
+      </div>
       {:then obj}
         <table>
           <thead>
@@ -401,7 +393,16 @@ style="text-align:left;font-size:12px;"
     </div>
   </div>
   {:catch error}
-    <div>{"Error: " + error.message}</div>
+  <div class="error-container">
+    <div class="error-icon">❌</div>
+    <div class="error-content">
+      <h3 class="error-title">抱歉，出现了问题</h3>
+      <p class="error-message">{error.message+" "+error.details.originalError.toString()}</p>
+    </div>
+    <button class="retry-button" onclick={() => window.location.reload()}>
+      重新加载
+    </button>
+  </div>
   {/await}
 </main>
 
@@ -760,5 +761,51 @@ style="text-align:left;font-size:12px;"
   @keyframes pulse {
     0%, 100% { opacity: 0.6; }
     50% { opacity: 1; }
+  }
+  .error-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+    margin: 2rem auto;
+  }
+
+  .error-icon {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    color: #f44336;
+  }
+
+  .error-content {
+    margin-bottom: 1.5rem;
+  }
+
+  .error-title {
+    font-size: 1.5rem;
+    color: #d32f2f;
+    margin: 0 0 0.5rem 0;
+  }
+
+  .error-message {
+    color: #616161;
+    margin: 0;
+    font-size: 1rem;
+    line-height: 1.5;
+  }
+
+  .retry-button {
+    background-color: #2196f3;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 0.5rem 1.5rem;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: background-color 0.3s;
+  }
+
+  .retry-button:hover {
+    background-color: #1976d2;
   }
 </style>

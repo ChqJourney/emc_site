@@ -414,5 +414,19 @@ WHERE NOT EXISTS (
             return result > 0;
         }
 
+        public async Task<IEnumerable<Reservation>> GetReservationsByStationAndMonthAsync(int stationId, string month)
+        {
+            var sql = "SELECT * FROM reservations WHERE station_id = @StationId AND MONTH(reservation_date) = @Month";
+            var result = await _connection.QueryAsync<Reservation>(sql, new { StationId = stationId, Month = month });
+            return result?? Enumerable.Empty<Reservation>();
+        }
+
+        public async Task<IEnumerable<Sevent>> GetSeventsByStationIdAsync(int id)
+        {
+            var sql = "SELECT * FROM s_events WHERE station_id = @Id";
+            var result = await _connection.QueryAsync<Sevent>(sql, new { Id = id });
+            return result?? Enumerable.Empty<Sevent>();
+        }
+
     }
 }

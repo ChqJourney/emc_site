@@ -9,6 +9,7 @@ namespace emc_api.Repositories
         Task<IEnumerable<Reservation>> GetReservationsByMonthAsync(string month, string projectEngineer = null);
         Task<IEnumerable<Reservation>> GetReservationsByYearAsync(string year, string projectEngineer = null);
         Task<IEnumerable<Reservation>> GetAllReservationsAsync(string timeRange, string projectEngineer = null);
+        Task<IEnumerable<Reservation>> GetReservationsByStationAndMonthAsync(int stationId, string month);
         Task<bool> CreateReservationAsync(Reservation reservation);
         Task<int> CreateReservationsAsync(Reservation reservation);
         Task<bool> UpdateReservationAsync(Reservation reservation);
@@ -24,6 +25,7 @@ namespace emc_api.Repositories
         Task<bool> CreateSeventAsync(SeventDto sevent);
         Task<bool> UpdateSeventAsync(SeventDto sevent);
         Task<Sevent> GetSeventByIdAsync(int id);
+        Task<IEnumerable<Sevent>> GetSeventsByStationIdAsync(int id);
         Task<bool> DeleteSeventAsync(int id);
         Task<bool> CheckDatabaseConnectionAsync();
         Task<Settings> GetSettingsAsync();

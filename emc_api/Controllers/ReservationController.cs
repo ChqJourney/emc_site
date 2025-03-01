@@ -35,7 +35,13 @@ namespace emc_api.Controllers
             var result = await _repository.GetReservationsByYearAsync(year, projectEngineer);
             return Ok(result);
         }
-
+        [HttpGet("station/{id}/{month}")]
+        public async Task<IActionResult> GetByStationAndMonth([FromQuery] int id, [FromQuery] string month)
+        {
+            var result = await _repository.GetReservationsByStationAndMonthAsync(id, month);
+            Console.WriteLine(result.Count());
+            return Ok(result);
+        }
         [HttpGet]
         public async Task<IActionResult> GetAll([FromQuery] string timeRange, [FromQuery] string? projectEngineer)
         {
