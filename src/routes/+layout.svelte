@@ -5,7 +5,7 @@
   import Modal from "../components/Modal.svelte";
   import { modalStore } from "../components/modalStore";
   let { children,data } = $props();
-  if(data.port==="1420"){
+  if(data.port==="5000"){
     setGlobal("run_mode","page");
     apiService.configure({
       baseUrl:"http://localhost:5000/api",
