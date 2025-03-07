@@ -74,6 +74,7 @@ builder.Services.AddScoped<SqliteConnection>(_ =>
 builder.Services.AddSingleton<ILoggerService, LoggerService>();
 builder.Services.AddScoped<IUserRepository,UserRepository>();
 builder.Services.AddScoped<IBizRepository,BizRepository>();
+builder.Services.AddScoped<IAuthService, AuthService>();
 var databaseInitializer = new DatabaseInitializer(new SqliteConnection(connectionString));
 await databaseInitializer.InitializeAsync();
 // 注册自定义认证方案

@@ -56,14 +56,14 @@ export interface StationDTO{
     status: string;
     sequence_no:number;
 }
-export interface Visting {
+export interface Visiting {
     id: number;
     visit_user: string;
     visit_machine: string;
     visit_count: number;
     last_visit_time: string;
 }
-export interface VistingDTO{
+export interface VisitingDTO{
     visit_user: string;
     visit_machine: string;
     visit_count: number;

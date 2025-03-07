@@ -15,7 +15,7 @@ export class ApiService {
     private static instance: ApiService;
     private baseUrl: string = '';
     private username: string | undefined;
-    private machineName: string | undefined;
+    private password: string | undefined;
 
     private constructor() {}
 
@@ -29,7 +29,7 @@ export class ApiService {
     public configure(config: ApiServiceConfig): void {
         this.baseUrl = config.baseUrl.endsWith('/') ? config.baseUrl.slice(0, -1) : config.baseUrl;
         this.username = config.username;
-        this.machineName = config.machineName;
+        this.password = config.machineName;
     }
 
     private getAuthHeaders(): HeadersInit {
@@ -40,12 +40,13 @@ export class ApiService {
         if (this.username) {
             headers['username'] = this.username;
         }
-        if (this.machineName) {
-            headers['machinename'] = this.machineName;
+        if (this.password) {
+            headers['password'] = this.password;
         }
-
+        
         return headers;
     }
+
 
     private async handleResponse<T>(response: Response): Promise<T> {
         if (!response.ok) {
@@ -105,6 +106,36 @@ export class ApiService {
                 { originalError: error }
             );
         }
+    }
+    public async login(username: string, password: string): Promise<void> {
+        try {
+            const response = await this.post('/auth', 
+                { UserName:username, Password:password }, 
+                { skipAuth: true,headers:{'Content-Type': 'application/json'} });
+            if (response.success) {
+                this.username = username;
+                this.password = password;
+            } else {
+                throw new AppError(ErrorCode.AUTH_FAILED, 'Login failed');
+            }
+        } catch (error) {
+            errorHandler.handleError(error as AppError);
+        }
+    }
+    public async changePassword(userName:string,oldPassword: string, newPassword: string): Promise<void> {
+        try {
+            const response = await this.put('/auth',
+                {UserName:userName, Password: oldPassword, NewPassword: newPassword });
+            if (!response.success) {
+                throw new AppError(ErrorCode.AUTH_FAILED, 'Change password failed');
+            }
+        } catch (error) {
+            errorHandler.handleError(error as AppError);
+        }
+    }
+    public async logout(): Promise<void> {
+        this.username = undefined;
+        this.password = undefined;
     }
 
     // 便捷方法

@@ -44,7 +44,20 @@
   const calendarDays = $derived(calendar.getCalendarDays($currentMonth));
   const monthDisplay = $derived(calendar.getMonthDisplay($currentMonth));
  
+  const checkAuth=()=>{
+    const str=localStorage.getItem("user");
+    if(str){
+      const user=JSON.parse(str) as User;
+      if(user){
+        return;
+      }
+      
+    }
+    goto("/auth/login");
+  }
+
   const init_page=async()=>{
+    checkAuth();
       const settings=await apiService.get("/general/settings");
       setGlobal("tests",settings.tests);
       setGlobal("project_engineers",settings.project_engineers);
@@ -212,7 +225,7 @@
         <div class="error-container">
           <div class="error-icon">❌</div>
           <div class="error-content">
-            <h3 class="error-title">抱歉，出现了问题</h3>
+            <h3 class="error-title">抱歉，服务器当前不可用</h3>
             <p class="error-message">{error.message}</p>
           </div>
           <button class="retry-button" onclick={() => window.location.reload()}>
@@ -225,7 +238,7 @@
     <div class="error-container">
       <div class="error-icon">❌</div>
       <div class="error-content">
-        <h3 class="error-title">抱歉，出现了问题</h3>
+        <h3 class="error-title">抱歉，服务器当前不可用</h3>
         <p class="error-message">{error.message+" "+error.details}</p>
       </div>
       <button class="retry-button" onclick={() => window.location.reload()}>

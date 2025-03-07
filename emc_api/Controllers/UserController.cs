@@ -40,5 +40,6 @@ namespace emc_api.Controllers
             var user = await _repository.GetUserAsync(username, machinename);
             return user is null ? NotFound("User not found") : Ok(user);
         }
+        
     }
 }

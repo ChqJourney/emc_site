@@ -21,6 +21,7 @@ export enum ErrorCode {
     API_ERROR = 4002,
     API_PARSE_ERROR = 4003,
     API_REQUEST_ERROR = 4004,
+    AUTH_FAILED=4005,
 
     // 系统错误 (9000-9999)
     UNKNOWN_ERROR = 9999
