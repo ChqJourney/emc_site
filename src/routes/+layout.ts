@@ -20,7 +20,7 @@ export function load() {
     // 在这里配置apiService
     apiService.configure({
       baseUrl: currentPort==="1420"
-      ?"http://localhost:5000/api":`http://${currentHost}/api`,
+      ?"http://localhost:5001/api":`http://${currentHost}/api`,
       username: "patri",
       machineName: "pwin"
     });

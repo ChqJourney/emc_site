@@ -1,22 +1,30 @@
-import type { SvelteComponent } from 'svelte';
 import { writable } from 'svelte/store';
+import type { Component } from 'svelte';
 
-function createModalStore() {
-  const { subscribe, set, update } = writable<{ show: boolean; component: any; props: any }>({
-    show: false,
+type ModalState = {
+    isShow: boolean;
+    component: Component | null;
+    props?: Record<string, unknown>;
+}
+export const modalStore=writable<ModalState>({
+    isShow: false,
     component: null,
     props: {}
-  });
+});
 
-  return {
-    subscribe,
-    open: (component: any, props:any = {}) => {
-      set({ show: true, component, props });
-    },
-    close: () => {
-      set({ show: false, component: null, props: {} });
-    }
-  };
+export const showModal=(component: Component, props: Record<string, unknown> = {}) => {
+    modalStore.update(state => ({
+        ...state,
+        isShow: true,
+        component,
+        props
+    }));
 }
-
-export const modalStore = createModalStore();
+export const hideModal=() => {
+    modalStore.update(state => ({
+       ...state,
+        isShow: false,
+        component: null,
+        props: {}
+    }));
+}

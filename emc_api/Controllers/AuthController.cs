@@ -41,6 +41,7 @@ namespace emc_api.Controllers
             await _userRepo.CreateUserAsync(user);
             return Ok();
         }
+        
         [HttpPost("login")]
         public async Task<IActionResult> Login(UserLoginRequest request)
         {
@@ -60,6 +61,7 @@ namespace emc_api.Controllers
                 RefreshToken = refreshToken
             });
         }
+        
         [HttpPost("refresh-token")]
         public async Task<IActionResult> RefreshToken(TokenModel tokenModel)
         {
@@ -81,6 +83,7 @@ namespace emc_api.Controllers
                 RefreshToken = newRefreshToken
             });
         }
+        
         [HttpPost("logout")]
         public async Task<IActionResult> Logout(TokenModel tokenModel)
         {
@@ -97,20 +100,27 @@ namespace emc_api.Controllers
             await _userRepo.UpdateRefreshTokenAsync(user.Id, null, null);
             return Ok();
         }
-        [Authorize(Roles = "Admin")]
+        
+        // [Authorize(Roles = "Admin")]
         [HttpGet("list")]
         public async Task<IActionResult> List()
         {
             return Ok(await _userRepo.GetAllUsersAsync());
         }
+        
+        
         [HttpPost("reset-password")]
         public async Task<IActionResult> ResetPassword(string username)
         {
             var user = await _userRepo.GetByUserNameAsync(username);
             if (user == null)
                 return NotFound("User not found");
-            var defaultPwd=GetPassword();
-            user.PasswordHash = BCrypt.Net.BCrypt.HashPassword("password");
+            var userList=await _auth.GetUsersAsync();
+            if (userList.Count == 0){
+                throw new Exception("controlled user listed empty or error");
+            }
+            var defaultPwd=userList.FirstOrDefault(u=>u.username==username)?.machinename;
+            user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(defaultPwd);
             await _userRepo.UpdatePasswordAsync(user.Id, user.PasswordHash);
             return Ok();
         }
@@ -166,22 +176,15 @@ namespace emc_api.Controllers
             }
 
             _logger.LogInformation($"Attempting change password for user: {dto.UserName}");
+            var user=await _userRepo.GetByUserNameAsync(dto.UserName);
+            
+            if (user == null || !BCrypt.Net.BCrypt.Verify(dto.Password, user.PasswordHash)){
 
-            try
-            {
-                var user = await _auth.ValidateUserAsync(dto.UserName, dto.Password);
-                if (user == null)
-                {
-                    return Unauthorized(new { message = "Invalid username or password" });
-                }
-                await _auth.ChangePasswordAsync(dto.UserName, dto.NewPassword);
-                return Ok(new { message = "Password changed successfully" });
+                return Unauthorized("Invalid credentials");
             }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Login failed");
-                return StatusCode(500, new { message = "Internal server error" });
-            }
+            var newHash=BCrypt.Net.BCrypt.HashPassword(dto.NewPassword);
+            await _userRepo.UpdatePasswordAsync(user.Id, newHash);
+            return Ok();
         }
     }
     public record UserRegisterRequest(string Username, string Password, string Role);

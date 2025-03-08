@@ -4,7 +4,7 @@
   import { onMount } from "svelte";
   import { calendar } from "../biz/calendar";
   import { getGlobal, setGlobal } from "../biz/globalStore";
-    import { modalStore } from "../components/modalStore";
+    import { hideModal, showModal } from "../components/modalStore";
     import { errorHandler } from "../biz/errorHandler";
     import About from "../components/About.svelte";
     import type { AppError } from "../biz/errors";
@@ -162,7 +162,7 @@
       </div>
       <button
         class="tooltip-container"
-        onclick={() => modalStore.open(About, { onNegative: () => modalStore.close() })}
+        onclick={() => showModal(About, { onNegative: () =>hideModal() })}
         aria-label="about"
       >
         <span class="tooltip">关于</span>

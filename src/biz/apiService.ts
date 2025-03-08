@@ -171,7 +171,7 @@ export const apiService = ApiService.getInstance();
 
 // 立即配置apiService，无需等待onMount
 apiService.configure({
-    baseUrl: "http://localhost:5000/api",
+    baseUrl: "http://localhost:5001/api",
     username: "patri",
     machineName: "pwin"
 });

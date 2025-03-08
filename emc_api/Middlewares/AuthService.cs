@@ -14,7 +14,7 @@ public class AuthService:IAuthService
         _logger = logger;
     }
 
-    public async Task<List<User>> GetUsersAsync()
+    public async Task<List<ControlledUser>> GetUsersAsync()
     {
         try
         {
@@ -22,7 +22,7 @@ public class AuthService:IAuthService
             if (!File.Exists(_authFilePath))
             {
                 _logger.LogError($"Auth file not found at: {_authFilePath}");
-                return new List<User>();
+                return new List<ControlledUser>();
             }
 
             string encryptedJson = await File.ReadAllTextAsync(_authFilePath);
@@ -31,7 +31,7 @@ public class AuthService:IAuthService
             if (string.IsNullOrEmpty(encryptedJson))
             {
                 _logger.LogError("Auth file is empty");
-                return new List<User>();
+                return new List<ControlledUser>();
             }
 
             // Remove any BOM or whitespace
@@ -43,67 +43,21 @@ public class AuthService:IAuthService
             if (string.IsNullOrEmpty(decryptedJson))
             {
                 _logger.LogError("Decryption failed or produced empty result");
-                return new List<User>();
+                return new List<ControlledUser>();
             }
             Console.WriteLine(decryptedJson);
             // Parse JSON
-            var users = JsonSerializer.Deserialize<List<User>>(decryptedJson);
-            return users ?? new List<User>();
+            var users = JsonSerializer.Deserialize<List<ControlledUser>>(decryptedJson);
+            return users ?? new List<ControlledUser>();
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error processing auth file");
-            return new List<User>();
+            return new List<ControlledUser>();
         }
     }
 
-    public async Task<User> ValidateUserAsync(string username, string password)
-    {
-        if (string.IsNullOrEmpty(username) || string.IsNullOrEmpty(password))
-        {
-            _logger.LogWarning("Attempted login with empty username or password");
-            return null;
-        }
-
-        var users = await GetUsersAsync();
-        return users.FirstOrDefault(u => 
-            u.UserName.Equals(username, StringComparison.OrdinalIgnoreCase) && 
-            u.MachineName == password);
-    }
-    public async Task<bool> ChangePasswordAsync(string username,string newPassword)
-    {
-        if (string.IsNullOrEmpty(username) || string.IsNullOrEmpty(newPassword))
-        {
-            _logger.LogWarning("Attempted change password with empty username or password");
-            return false;
-        }
-
-        var users = await GetUsersAsync();
-        var user = users.FirstOrDefault(u => u.UserName.Equals(username, StringComparison.OrdinalIgnoreCase));
-        if (user == null)
-        {
-            _logger.LogWarning($"User not found: {username}");
-            return false;
-        }
-        user.Password = newPassword;
-        return await SaveUsersAsync(users);
-    }
-    private async Task<bool> SaveUsersAsync(IEnumerable<User> users)
-    {
-        try
-        {
-            // Serialize to JSON
-            string json = JsonSerializer.Serialize(users);
-            // Encrypt
-            string encryptedJson = AesEncryption.EncryptOpenSSL(json, _encryptionKey);
-            // Write to file
-            await File.WriteAllTextAsync(_authFilePath, encryptedJson);
-            return true;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error saving users");
-            return false;
-        }
-    }
+    
+    
 }
+public record ControlledUser(string username,string machinename,string role,string team,string englishname);

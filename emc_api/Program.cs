@@ -61,7 +61,7 @@ builder.Services.AddCors(options =>
 // Configure SQLite connection
 builder.Configuration.AddJsonFile("appsettings.json", optional: false);
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
-var dir=builder.Configuration.GetValue<string>("data:dir");
+var dir = builder.Configuration.GetValue<string>("data:dir")?.Replace("\\", Path.DirectorySeparatorChar.ToString());
 Console.WriteLine(dir);
 if (string.IsNullOrEmpty(connectionString))
 {
@@ -149,11 +149,12 @@ var hostEntry = Dns.GetHostEntry(Dns.GetHostName());
 var localIp = hostEntry.AddressList.FirstOrDefault(a => a.AddressFamily == AddressFamily.InterNetwork)?.ToString() ?? "127.0.0.1";
 var port = app.Urls.FirstOrDefault() is string url ? new Uri(url).Port : 5000;
 var portalUrl = $"http://{localIp}:{port}";
-System.IO.File.WriteAllText(Path.Combine(dir,"portal.txt"), portalUrl);
+var portalPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "portal.txt");
+System.IO.File.WriteAllText(portalPath, portalUrl);
 Log.Logger.Information("Server will started at {PortalUrl}", portalUrl);
 
 // 使用控制器路由
 app.MapControllers();
 
 // Run the application
-app.Run("http://0.0.0.0:5000");
+app.Run("http://0.0.0.0:5001");
