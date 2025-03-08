@@ -12,6 +12,9 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.Data.Sqlite;
 using emc_api.Data;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -78,8 +81,29 @@ builder.Services.AddScoped<IAuthService, AuthService>();
 var databaseInitializer = new DatabaseInitializer(new SqliteConnection(connectionString));
 await databaseInitializer.InitializeAsync();
 // 注册自定义认证方案
-builder.Services.AddAuthentication("HeaderScheme")
-    .AddScheme<AuthenticationSchemeOptions, HeaderAuthenticationHandler>("HeaderScheme", options => { });
+builder.Services.AddAuthentication(options =>
+{
+    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultScheme = JwtBearerDefaults.AuthenticationScheme;
+}).AddJwtBearer(o =>
+{
+    o.TokenValidationParameters = new TokenValidationParameters
+    {
+        ValidIssuer = builder.Configuration["Jwt:Issuer"],
+        ValidAudience = builder.Configuration["Jwt:Audience"],
+        IssuerSigningKey = new SymmetricSecurityKey
+            (Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"])),
+        ValidateIssuer = true,
+        ValidateAudience = true,
+        ValidateLifetime = true,
+        ValidateIssuerSigningKey = true,
+        ClockSkew = TimeSpan.Zero
+    };
+});
+
+// builder.Services.AddAuthentication("HeaderScheme")
+//     .AddScheme<AuthenticationSchemeOptions, HeaderAuthenticationHandler>("HeaderScheme", options => { });
 // 定义基于角色/策略的授权
 builder.Services.AddAuthorization(options =>
 {

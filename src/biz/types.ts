@@ -86,6 +86,7 @@ export interface TestDTO{
 export interface User{
     machine:string;
     user:string;
+    isAuthenticated?:string;
 }
 export interface Config{
     high_load:number;

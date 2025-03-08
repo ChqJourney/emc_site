@@ -68,7 +68,7 @@ public class AuthService:IAuthService
         var users = await GetUsersAsync();
         return users.FirstOrDefault(u => 
             u.UserName.Equals(username, StringComparison.OrdinalIgnoreCase) && 
-            u.Password == password);
+            u.MachineName == password);
     }
     public async Task<bool> ChangePasswordAsync(string username,string newPassword)
     {

@@ -107,14 +107,17 @@ export class ApiService {
             );
         }
     }
-    public async login(username: string, password: string): Promise<void> {
+    public async login(username: string, password: string): Promise<any> {
         try {
-            const response = await this.post('/auth', 
+            const response = await this.post('/auth/login', 
                 { UserName:username, Password:password }, 
                 { skipAuth: true,headers:{'Content-Type': 'application/json'} });
-            if (response.success) {
+                console.log(response)
+            if (response) {
                 this.username = username;
                 this.password = password;
+                console.log("logined")
+                return {...response,isAuthenticated:true}
             } else {
                 throw new AppError(ErrorCode.AUTH_FAILED, 'Login failed');
             }

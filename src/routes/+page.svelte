@@ -48,7 +48,7 @@
     const str=localStorage.getItem("user");
     if(str){
       const user=JSON.parse(str) as User;
-      if(user){
+      if(user.isAuthenticated){
         return;
       }
       

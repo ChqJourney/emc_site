@@ -3,20 +3,33 @@
     import { onMount } from "svelte";
     import { goto } from "$app/navigation";
     import { apiService } from "../../../biz/apiService";
+    import { errorHandler } from "../../../biz/errorHandler";
+    import type { AppError } from "../../../biz/errors";
   
-    onMount(() => {
-      const user = localStorage.getItem("user");
-      if (!user) {
-        goto("/auth/login");
-      }
-    });
+    // onMount(() => {
+    //   const user = localStorage.getItem("user");
+    //   if (!user) {
+    //     goto("/auth/login");
+    //   }
+    // });
   
     let username = '';
     let password = '';
   
     const handleLogin = async () => {
-        if (username && password) {
-           await apiService.login(username, password);
+        try{
+
+            if (username && password) {
+                const user=await apiService.login(username, password);
+                if(!user){
+                    errorHandler.showError("login failed");
+                    return;
+                }
+                localStorage.setItem("user",JSON.stringify(user));
+                goto("/");
+            }
+        }catch(e){
+            errorHandler.handleError(e as AppError);
         }
     };
 </script>
