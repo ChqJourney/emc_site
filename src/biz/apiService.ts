@@ -1,177 +1,364 @@
-import { errorHandler } from './errorHandler';
-import { AppError, ErrorCode } from './errors';
-
-interface ApiServiceConfig {
-    baseUrl: string;
-    username?: string;
-    machineName?: string;
+// apiService.ts
+import axios, { AxiosError, type AxiosInstance, type AxiosRequestConfig, type AxiosResponse } from 'axios';
+import type { User } from './types';
+export interface ApiServiceConfig {
+    baseURL: string;
+    timeout?: number;
+    authEndpoints?: string[];
+    storage?: {
+        getItem: (key: string) => string | null;
+        setItem: (key: string, value: string) => void;
+        removeItem: (key: string) => void;
+    };
+    onAuthFail?: () => void;
+}
+const DEFAULT_CONFIG: Partial<ApiServiceConfig> = {
+    timeout: 10000,
+    authEndpoints: ['/auth/login', '/auth/refresh', '/auth/register'],
+    storage: undefined
+};
+interface TokenData {
+    accessToken: string;
+    refreshToken: string;
+    expiresIn: number;
 }
 
-interface RequestOptions extends RequestInit {
-    skipAuth?: boolean;
+
+interface RefreshTokenResponse {
+    accessToken: string;
+    refreshToken: string;
+    expiresIn: number;
 }
 
-export class ApiService {
-    private static instance: ApiService;
-    private baseUrl: string = '';
-    private username: string | undefined;
-    private password: string | undefined;
+interface LoginPayload {
+    username: string;
+    password: string;
+}
 
-    private constructor() {}
+interface RegisterPayload {
+    username: string;
+    machinename: string;
+    englishname: string;
+    team: string;
+    role: string;
+}
+interface RequestLog {
+    timestamp: number;
+    method: string;
+    url: string;
+    data?: any;
+    response?: any;
+    error?: any;
+    duration: number;
+}
 
-    public static getInstance(): ApiService {
-        if (!ApiService.instance) {
-            ApiService.instance = new ApiService();
-        }
-        return ApiService.instance;
+interface ExtendedAxiosRequestConfig extends AxiosRequestConfig {
+    _retry?: boolean;
+    metadata?: {
+        startTime: number;
+    };
+}
+
+class ApiService {
+    private axiosInstance: AxiosInstance;
+    private requestLogs: RequestLog[] = [];
+    private requestThrottles = new Map<string, number>();
+    private readonly THROTTLE_DELAY = 1000; // 1秒节流
+    private isRefreshing = false;
+    private refreshTokenPromise: Promise<RefreshTokenResponse> | null = null;
+    private failedRequests: Array<() => void> = [];
+    // 存储当前配置
+    private currentConfig: ApiServiceConfig;
+
+    constructor(config: ApiServiceConfig) {
+        this.currentConfig = this.mergeConfig(config);
+        this.axiosInstance = this.createAxiosInstance();
+        this.initializeInterceptors();
     }
+    public configure(newConfig: Partial<ApiServiceConfig>): void {
+        // 合并新旧配置
+        this.currentConfig = this.mergeConfig(newConfig);
 
-    public configure(config: ApiServiceConfig): void {
-        this.baseUrl = config.baseUrl.endsWith('/') ? config.baseUrl.slice(0, -1) : config.baseUrl;
-        this.username = config.username;
-        this.password = config.machineName;
+        // 重新创建 Axios 实例
+        this.axiosInstance = this.createAxiosInstance();
+
+        // 重新绑定拦截器
+        this.initializeInterceptors();
     }
-
-    private getAuthHeaders(): HeadersInit {
-        const headers: HeadersInit = {
-            'Content-Type': 'application/json',
+    private mergeConfig(newConfig: Partial<ApiServiceConfig>): ApiServiceConfig {
+        return {
+            ...DEFAULT_CONFIG,
+            ...this.currentConfig, // 保留现有配置
+            ...newConfig           // 应用新配置
+        } as ApiServiceConfig;
+    }
+    private createAxiosInstance(): AxiosInstance {
+        return axios.create({
+            baseURL: this.currentConfig.baseURL,
+            timeout: this.currentConfig.timeout,
+            headers: {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Methods': 'GET,PUT,POST,DELETE,PATCH,OPTIONS',
+                'Access-Control-Allow-Headers': 'Origin, X-Requested-With, Content-Type, Accept, Authorization'
+            },
+        });
+    }
+    private logRequest(config: ExtendedAxiosRequestConfig, response?: any, error?: any): void {
+        const log: RequestLog = {
+            timestamp: Date.now(),
+            method: config.method?.toUpperCase() || 'UNKNOWN',
+            url: config.url || 'UNKNOWN',
+            data: config.data,
+            response: response?.data,
+            error: error?.message,
+            duration: Date.now() - (config.metadata?.startTime || Date.now())
         };
-
-        if (this.username) {
-            headers['username'] = this.username;
-        }
-        if (this.password) {
-            headers['password'] = this.password;
-        }
         
-        return headers;
+        this.requestLogs.push(log);
+        console.debug('[API Request]', log);
     }
 
+    private getRequestKey(config: ExtendedAxiosRequestConfig): string {
+        return `${config.method}-${config.url}-${JSON.stringify(config.data)}`;
+    }
 
-    private async handleResponse<T>(response: Response): Promise<T> {
-        if (!response.ok) {
-            let errorMessage: string;
-            try {
-                const errorData = await response.json();
-                errorMessage = errorData.message || response.statusText;
-            } catch {
-                errorMessage = response.statusText;
+    private shouldThrottleRequest(config: ExtendedAxiosRequestConfig): boolean {
+        const key = this.getRequestKey(config);
+        const lastRequest = this.requestThrottles.get(key);
+        const now = Date.now();
+
+        if (lastRequest && now - lastRequest < this.THROTTLE_DELAY) {
+            return true;
+        }
+
+        this.requestThrottles.set(key, now);
+        return false;
+    }
+
+    public getRequestLogs(): RequestLog[] {
+        return [...this.requestLogs];
+    }
+
+    public clearLogs(): void {
+        this.requestLogs = [];
+    }
+    private initializeInterceptors() {
+        // 请求拦截器
+        this.axiosInstance.interceptors.request.use(
+            (config) => {
+                const token = this.currentConfig.storage?.getItem('accessToken');
+                if (token && !this.isAuthEndpoint(config.url)) {
+                    config.headers.Authorization = `Bearer ${token}`;
+                }
+                return config;
+            },
+            (error) => Promise.reject(error)
+        );
+
+        // 响应拦截器
+        this.axiosInstance.interceptors.response.use(
+            (response: AxiosResponse) => response,
+            async (error: AxiosError) => {
+                const originalRequest = error.config as ExtendedAxiosRequestConfig;
+                if (!originalRequest) return Promise.reject(error);
+
+                // 处理 401 错误
+                if (error.response?.status === 401&& !originalRequest._retry) {
+                    originalRequest._retry = true;  // 标记该请求已经重试过
+                    
+                    if (!this.isRefreshing) {
+                        this.isRefreshing = true;
+                        this.refreshTokenPromise = (async () => {
+                            try {
+                                const newToken = await this.refreshToken();
+                                const tokenData = this.getToken();
+                                this.storeToken({ 
+                                    ...tokenData, 
+                                    accessToken: newToken.accessToken, 
+                                    refreshToken: newToken.refreshToken,
+                                    expiresIn: newToken.expiresIn 
+                                });
+                                return newToken;
+                            } catch (error) {
+                                this.clearAuth();
+                                if (this.currentConfig.onAuthFail) {
+                                    this.currentConfig.onAuthFail();
+                                }
+                                throw error;
+                            } finally {
+                                this.isRefreshing = false;
+                                this.refreshTokenPromise = null;
+                            }
+                        })();
+                    }
+    
+                    try {
+                        const newToken = await this.refreshTokenPromise;
+                        // 更新失败请求的 Authorization header
+                        if (originalRequest && originalRequest.headers) {
+                            originalRequest.headers.Authorization = `Bearer ${newToken?.accessToken}`;
+                        }
+                        return this.axiosInstance(originalRequest);
+                    } catch (error) {
+                        // token 刷新失败，直接抛出错误，不再重试
+                    this.clearAuth();
+                    if (this.currentConfig.onAuthFail) {
+                        this.currentConfig.onAuthFail();
+                    }
+                        return Promise.reject(error);
+                    }
+                }
+                return Promise.reject(error);
             }
-
-            throw new AppError(
-                ErrorCode.API_ERROR,
-                `API request failed: ${errorMessage}`,
-                { status: response.status }
-            );
-        }
-
+        );
+    }
+    private async retryRequest(failedRequest: AxiosRequestConfig): Promise<any> {
         try {
-            return await response.json();
+            await this.refreshTokenPromise;
+            return await this.axiosInstance(failedRequest);
         } catch (error) {
-            throw new AppError(
-                ErrorCode.API_PARSE_ERROR,
-                'Failed to parse API response',
-                { originalError: error }
-            );
+            throw error;
         }
     }
 
-    public async fetch<T = any>(
-        endpoint: string,
-        options: RequestOptions = {}
-    ): Promise<T> {
+    // 核心请求方法
+    public async request<T = any>(config: ExtendedAxiosRequestConfig): Promise<T> {
+        // 添加请求开始时间
+        config.metadata = { startTime: Date.now() };
+
+        // 检查节流
+        // if (this.shouldThrottleRequest(config)) {
+        //     const error = new Error('Request throttled');
+        //     this.logRequest(config, undefined, error);
+        //     throw error;
+        // }
         try {
-            const url = endpoint.startsWith('http') 
-                ? endpoint 
-                : `${this.baseUrl}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
-
-            const headers = !options.skipAuth
-                ? { ...this.getAuthHeaders(), ...(options.headers || {}) }
-                : options.headers || {};
-
-            const response = await fetch(url, {
-                ...options,
-                headers
-            });
-
-            return await this.handleResponse<T>(response);
+            const response = await this.axiosInstance.request<T>(config);
+            return response.data;
         } catch (error) {
-            if (error instanceof AppError) {
-                throw error;
-            }
-            
-            throw new AppError(
-                ErrorCode.API_REQUEST_ERROR,
-                'API request failed',
-                { originalError: error }
-            );
+             // 由于拦截器已经处理了 401，这里不需要再处理
+        if (axios.isAxiosError(error)) {
+            throw error.response?.data || { error: 'Network Error' };
+        }
+        throw { error: 'Unknown Error' };
         }
     }
-    public async login(username: string, password: string): Promise<any> {
-        try {
-            const response = await this.post('/auth/login', 
-                { UserName:username, Password:password }, 
-                { skipAuth: true,headers:{'Content-Type': 'application/json'} });
-                console.log(response)
-            if (response) {
-                this.username = username;
-                this.password = password;
-                console.log("logined")
-                return {...response,isAuthenticated:true}
-            } else {
-                throw new AppError(ErrorCode.AUTH_FAILED, 'Login failed');
-            }
-        } catch (error) {
-            errorHandler.handleError(error as AppError);
-        }
+
+    public async Post<T = any>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> {
+        return this.request<T>({ method: 'post', url, data, ...config });
     }
-    public async changePassword(userName:string,oldPassword: string, newPassword: string): Promise<void> {
-        try {
-            const response = await this.put('/auth',
-                {UserName:userName, Password: oldPassword, NewPassword: newPassword });
-            if (!response.success) {
-                throw new AppError(ErrorCode.AUTH_FAILED, 'Change password failed');
-            }
-        } catch (error) {
-            errorHandler.handleError(error as AppError);
-        }
+    public async Get<T = any>(url: string, config?: AxiosRequestConfig): Promise<T> {
+        return this.request<T>({ method: 'get', url, ...config });
     }
-    public async logout(): Promise<void> {
-        this.username = undefined;
-        this.password = undefined;
+    // 登录方法
+    public async login(payload: LoginPayload): Promise<void> {
+        const response = await this.axiosInstance.post<TokenData>(
+            '/auth/login',
+            payload
+        );
+        this.storeToken(response.data);
+    }
+    public async logout(username: string): Promise<void> {
+        await this.Post('/auth/logout', { username });
+        this.clearAuth();
+    }
+    public async list(): Promise<User[]> {
+        const response = await this.axiosInstance.get<User[]>(
+            '/auth/list'
+        );
+        console.log(response.data)
+        return response.data;
+    }
+    // 注册方法
+    public async create(payload: RegisterPayload): Promise<void> {
+        await this.Post('/auth/create', payload);
     }
 
-    // 便捷方法
-    public async get<T = any>(endpoint: string, options: RequestOptions = {}): Promise<T> {
-        return this.fetch<T>(endpoint, { ...options, method: 'GET' });
-    }
-
-    public async post<T = any>(endpoint: string, data?: any, options: RequestOptions = {}): Promise<T> {
-        return this.fetch<T>(endpoint, {
-            ...options,
-            method: 'POST',
-            body: JSON.stringify(data)
+    // Token 刷新方法
+    public async refreshToken(): Promise<RefreshTokenResponse> {
+        const tokenData = this.getToken();
+        if (!tokenData.accessToken) throw new Error('No access token available');
+        if (!tokenData.refreshToken) throw new Error('No refresh token available');
+        console.log('Refresh Token Request Payload:', {
+            accessToken: tokenData.accessToken,
+            refreshToken: tokenData.refreshToken
         });
+        const newToken = await this.Post<RefreshTokenResponse>(
+            '/auth/refresh-token',
+            { accessToken: tokenData.accessToken, refreshToken: tokenData.refreshToken }
+        );
+        console.log('Refresh Token Response:', newToken);
+        return newToken;
     }
 
-    public async put<T = any>(endpoint: string, data?: any, options: RequestOptions = {}): Promise<T> {
-        return this.fetch<T>(endpoint, {
-            ...options,
-            method: 'PUT',
-            body: JSON.stringify(data)
-        });
+    private storeToken(tokenData: TokenData): void {
+        this.currentConfig.storage?.setItem('accessToken', tokenData.accessToken);
+        this.currentConfig.storage?.setItem('refreshToken', tokenData.refreshToken);
+        this.currentConfig.storage?.setItem('tokenExpiresAt', tokenData.expiresIn.toString());
+    }
+    private getToken(): TokenData {
+        return {
+            accessToken: this.currentConfig.storage?.getItem('accessToken') ?? '',
+            refreshToken: this.currentConfig.storage?.getItem('refreshToken') ?? '',
+            expiresIn: this.currentConfig.storage?.getItem('tokenExpiresAt') ? parseInt(this.currentConfig.storage?.getItem('tokenExpiresAt') ?? '0') : 0
+        }
     }
 
-    public async delete<T = any>(endpoint: string, options: RequestOptions = {}): Promise<T> {
-        return this.fetch<T>(endpoint, { ...options, method: 'DELETE' });
+    // 清除认证信息
+    public clearAuth(): void {
+        this.currentConfig.storage?.removeItem('accessToken');
+        this.currentConfig.storage?.removeItem('refreshToken');
+        this.currentConfig.storage?.removeItem('tokenExpiresAt');
     }
+    private isAuthEndpoint(url?: string): boolean {
+        if (!url) return false;
+        return this.currentConfig?.authEndpoints?.some(endpoint =>
+            url.startsWith(endpoint) ||
+            url.startsWith(this.currentConfig.baseURL + endpoint)
+        ) ?? false;
+    }
+
+    private isTokenExpiredError(error: AxiosError): boolean {
+        return error.response?.status === 401 &&
+            error.config?.url !== '/auth/login' &&
+            error.config?.url !== '/auth/refresh';
+    }
+
+    private retryFailedRequests(): void {
+        while (this.failedRequests.length) {
+            const retry = this.failedRequests.shift();
+            retry?.();
+        }
+    }
+
+
 }
 
-export const apiService = ApiService.getInstance();
-
-// 立即配置apiService，无需等待onMount
-apiService.configure({
-    baseUrl: "http://localhost:5001/api",
-    username: "patri",
-    machineName: "pwin"
+// 使用示例
+export const apiService = new ApiService({
+    baseURL: 'https://api.example.com',
+    timeout: 5000
 });
+
+export const checkAuth = async () => {
+    const expiresAt = localStorage.getItem('tokenExpiresAt');
+    if (!expiresAt) return false;
+    const expirationTime = parseInt(expiresAt);
+    console.log('Current time:', Date.now());
+    console.log('Expiration time:', expirationTime);
+    console.log('Time difference (seconds):', (Date.now() - expirationTime) / 1000);
+    if (expiresAt && Date.now() > parseInt(expiresAt)) {
+        try {
+            await apiService.refreshToken();
+            return true;
+        } catch (error) {
+            console.error('Token refresh failed:', error);
+            apiService.clearAuth();
+            return false;
+        }
+    } else {
+        return true;
+    }
+
+}

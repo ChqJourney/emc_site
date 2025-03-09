@@ -5,6 +5,7 @@ export const prerender = true;
 export const ssr = false;
 
 import { browser } from '$app/environment';
+import { goto } from '$app/navigation';
 import { apiService } from '../biz/apiService';
 
 export function load() {
@@ -18,13 +19,22 @@ export function load() {
     console.log(`Current Hostname: ${currentHostname}`);
     console.log(`Current Port: ${currentPort}`);
     // 在这里配置apiService
+
     apiService.configure({
-      baseUrl: currentPort==="1420"
-      ?"http://localhost:5001/api":`http://${currentHost}/api`,
-      username: "patri",
-      machineName: "pwin"
-    });
-    
+      baseURL: currentPort === "1420"
+        ? "http://localhost:5001/api" : `http://${currentHost}/api`,
+      timeout: 10000,
+      authEndpoints: ['/auth/login', '/auth/refresh', '/auth/logout', '/auth/list', '/auth/create'],
+      storage: {
+        getItem: (key: string) => localStorage.getItem(key),
+        setItem: (key: string, value: string) => localStorage.setItem(key, value),
+        removeItem: (key: string) => localStorage.removeItem(key)
+      },
+      onAuthFail: () => {
+        goto('/auth/login');
+    }
+    })
+
     return {
       url: currentUrl,
       host: currentHost,
@@ -32,7 +42,7 @@ export function load() {
       port: currentPort
     };
   }
-  
+
   return {
     url: '',
     host: '',

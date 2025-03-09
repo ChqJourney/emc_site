@@ -28,76 +28,99 @@ namespace emc_api.Controllers
             _userRepo=userRepo;
         }
 
-        [HttpPost("register")]
-        public async Task<IActionResult> Register(UserRegisterRequest request)
-        {
-            // 实现用户注册逻辑，包括密码哈希存储
-            var user = new User
-            {
-                UserName = request.Username,
-                PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
-                Role = request.Role
-            };
-            await _userRepo.CreateUserAsync(user);
-            return Ok();
-        }
+        // [HttpPost("register")]
+        // public async Task<IActionResult> Register(UserRegisterRequest request)
+        // {
+        //     // 实现用户注册逻辑，包括密码哈希存储
+        //     var user = new UserDto
+        //     {
+        //         UserName = request.Username,
+        //         PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
+        //         Role = request.Role
+        //     };
+        //     await _userRepo.CreateUserAsync(user);
+        //     return Ok();
+        // }
         
         [HttpPost("login")]
         public async Task<IActionResult> Login(UserLoginRequest request)
         {
-            var user = await _userRepo.GetByUserNameAsync(request.Username);
+            var user = await _userRepo.GetByUserNameAsync(request.username);
 
-            if (user == null || !BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
+            if (user == null || !BCrypt.Net.BCrypt.Verify(request.password, user.PasswordHash))
                 return Unauthorized("Invalid credentials");
             var token = GenerateJwtToken(user);
             var refreshToken = GenerateRefreshToken();
 
             user.RefreshToken = refreshToken;
-            user.RefreshTokenExpiryTime = DateTime.UtcNow.AddDays(_configuration.GetValue<int>("Jwt:RefreshTokenExpirationDays"));
+            user.RefreshTokenExpiryTime = ((DateTimeOffset)DateTime.UtcNow.AddMinutes(_configuration.GetValue<int>("Jwt:AccessTokenExpirationMinutes"))).ToUnixTimeMilliseconds();
+
             await _userRepo.UpdateRefreshTokenAsync(user.Id, refreshToken, user.RefreshTokenExpiryTime);
             return Ok(new
             {
                 AccessToken = token,
-                RefreshToken = refreshToken
+                RefreshToken = refreshToken,
+                ExpiresIn=((DateTimeOffset)DateTime.UtcNow.AddMinutes(_configuration.GetValue<int>("Jwt:AccessTokenExpirationMinutes"))).ToUnixTimeMilliseconds()
             });
         }
-        
+        [Authorize]
+        [HttpPost("me")]
+        public async Task<IActionResult> Me()
+        {
+            var user = await _userRepo.GetByUserNameAsync(User.Identity.Name);
+            return Ok(new
+            {
+                username=user.UserName,
+                role=user.Role,
+                englishname=user.FullName,
+                team=user.Team
+            });
+        }
         [HttpPost("refresh-token")]
         public async Task<IActionResult> RefreshToken(TokenModel tokenModel)
         {
-            var principal = GetPrincipalFromExpiredToken(tokenModel.AccessToken);
+            _logger.LogInformation($"Refresh token attempt for token: {tokenModel.accessToken?.Substring(0, 20)}...");
+            var principal = GetPrincipalFromExpiredToken(tokenModel.accessToken);
             var username = principal.Identity.Name;
 
             var user = await _userRepo.GetByUserNameAsync(username);
+            _logger.LogInformation(user.RefreshToken);
+            _logger.LogInformation(tokenModel.refreshToken);
+            _logger.LogInformation(user.RefreshTokenExpiryTime.ToString());
+            _logger.LogInformation(((DateTimeOffset)DateTime.UtcNow).ToUnixTimeMilliseconds().ToString());
+            if (user == null || user.RefreshToken != tokenModel.refreshToken ||
+                user.RefreshTokenExpiryTime <= ((DateTimeOffset)DateTime.UtcNow).ToUnixTimeMilliseconds()){
 
-            if (user == null || user.RefreshToken != tokenModel.RefreshToken ||
-                user.RefreshTokenExpiryTime <= DateTime.UtcNow)
                 return BadRequest("Invalid token");
+                }
+            _logger.LogInformation("Token is valid");
             var newAccessToken = GenerateJwtToken(user);
             var newRefreshToken = GenerateRefreshToken();
-            user.RefreshToken = newRefreshToken;
-            await _userRepo.UpdateRefreshTokenAsync(user.Id, newRefreshToken, user.RefreshTokenExpiryTime);
+            var refreshTokenExpiryTime=((DateTimeOffset)DateTime.UtcNow.AddDays(_configuration.GetValue<int>("Jwt:RefreshTokenExpirationDays"))).ToUnixTimeMilliseconds();
+            var accessTokenExpiraryTime=((DateTimeOffset)DateTime.UtcNow.AddMinutes(_configuration.GetValue<int>("Jwt:AccessTokenExpirationMinutes"))).ToUnixTimeMilliseconds();
+            await _userRepo.UpdateRefreshTokenAsync(user.Id, newRefreshToken, refreshTokenExpiryTime);
             return Ok(new
             {
                 AccessToken = newAccessToken,
-                RefreshToken = newRefreshToken
+                RefreshToken = newRefreshToken,
+                ExpiresIn=accessTokenExpiraryTime
             });
         }
         
         [HttpPost("logout")]
         public async Task<IActionResult> Logout(TokenModel tokenModel)
         {
-            var principal = GetPrincipalFromExpiredToken(tokenModel.AccessToken);
+            var principal = GetPrincipalFromExpiredToken(tokenModel.accessToken);
             var username = principal.Identity.Name;
 
             var user = await _userRepo.GetByUserNameAsync(username);
 
-            if (user == null || user.RefreshToken != tokenModel.RefreshToken ||
-                user.RefreshTokenExpiryTime <= DateTime.UtcNow)
+            if (user == null || user.RefreshToken != tokenModel.refreshToken ||
+                user.RefreshTokenExpiryTime <= DateTime.UtcNow.Ticks)
                 return BadRequest("Invalid token");
             user.RefreshToken = null;
-            user.RefreshTokenExpiryTime = null;
-            await _userRepo.UpdateRefreshTokenAsync(user.Id, null, null);
+            user.RefreshTokenExpiryTime = 0;
+            await _userRepo.UpdateRefreshTokenAsync(user.Id, null, 0);
             return Ok();
         }
         
@@ -107,7 +130,13 @@ namespace emc_api.Controllers
         {
             return Ok(await _userRepo.GetAllUsersAsync());
         }
-        
+        [HttpPost("create")]
+        public async Task<IActionResult> Create(UserDto user)
+        {
+            var passwordHash = BCrypt.Net.BCrypt.HashPassword(user.machinename);
+            await _userRepo.CreateUserAsync(user,passwordHash);
+            return Ok();
+        }
         
         [HttpPost("reset-password")]
         public async Task<IActionResult> ResetPassword(string username)
@@ -132,7 +161,9 @@ namespace emc_api.Controllers
             {
             new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
             new Claim(ClaimTypes.Name, user.UserName),
-            new Claim(ClaimTypes.Role, user.Role)
+            new Claim(ClaimTypes.Role, user.Role),
+            new Claim("englishname", user.FullName),
+            new Claim("team", user.Team)
         };
             var token = new JwtSecurityToken(
                 _configuration["Jwt:Issuer"],
@@ -188,8 +219,8 @@ namespace emc_api.Controllers
         }
     }
     public record UserRegisterRequest(string Username, string Password, string Role);
-    public record UserLoginRequest(string Username, string Password);
-    public record TokenModel(string AccessToken, string RefreshToken);
+    public record UserLoginRequest(string username, string password);
+    public record TokenModel(string accessToken, string refreshToken);
     public record ChangePasswordDto(string UserName, string Password, string NewPassword);
 
 }

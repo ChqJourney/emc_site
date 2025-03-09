@@ -2,10 +2,8 @@
     import { apiService } from '../biz/apiService';
     import { errorHandler } from '../biz/errorHandler';
     import type { AppError } from '../biz/errors';
-    import type { Reservation } from '../biz/types';
-    import { modalStore } from './modalStore';
   
-    let {reservation}:{reservation:Reservation}=$modalStore.props;
+    let {reservation}=$props();
 
 
   console.log(reservation);
@@ -33,7 +31,7 @@
     }
     const getStationName=async(id:number)=>{
         try{
-          const station=await apiService.get(`/stations/${id}`);
+          const station=await apiService.Get(`/stations/${id}`);
           return station.name
         }catch(e){
             errorHandler.handleError(e as AppError);

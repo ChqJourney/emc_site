@@ -8,24 +8,29 @@ public class User
     
     [Required]
     [StringLength(50)]
+    [JsonPropertyName("username")]
     public string UserName { get; set; } = string.Empty;
     // 建议移除（与认证无关，可单独存储）
     [StringLength(20)]
+    [JsonPropertyName("machinename")]
     public string MachineName { get; set; } = string.Empty; 
     [StringLength(100)]
+    [JsonPropertyName("englishname")]
     public string FullName { get; set; } = string.Empty;
     [StringLength(50)]
+    [JsonPropertyName("team")]
     public string Team { get; set; } = string.Empty;
     // 建议改为枚举类型或角色集合
     [Required]
     [StringLength(20)]
+    [JsonPropertyName("role")]
     public string Role { get; set; } = "User"; 
     [Required]
     [StringLength(60)] // BCrypt哈希固定长度60
     public string PasswordHash { get; set; } = string.Empty;
     [StringLength(88)] // JWT Refresh Token标准长度
     public string? RefreshToken { get; set; }
-    public DateTime? RefreshTokenExpiryTime { get; set; }
+    public long RefreshTokenExpiryTime { get; set; }
     // 新增安全字段
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? LastLoginAt { get; set; }
@@ -79,10 +84,9 @@ public class Job
 
 public class UserDto
 {
-    public string UserName { get; set; }
-    public string MachineName { get; set; }
-    public string FullName { get; set; }
-    public string Team { get; set; }
-    public string Role { get; set; }
-    public DateTime LoginAt { get; set; }
+    public string username { get; set; }
+    public string machinename { get; set; }
+    public string englishname { get; set; }
+    public string team { get; set; }
+    public string role { get; set; }
 }

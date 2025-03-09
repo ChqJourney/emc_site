@@ -23,13 +23,14 @@
     // 创建新用户或修改
     async function createUser(e: any) {
         e.preventDefault();
+        console.log(newUser);
         try {
-            await apiService.post("/auth/register", {
-                Username: newUser.username,
-                Password: newUser.machinename,
+            await apiService.Post("/auth/create", {
+                username: newUser.username,
+                machinename: newUser.machinename,
                 englishname: newUser.englishname,
                 team:newUser.team,
-                Role: newUser.role,
+                role: newUser.role,
             });
             hideModal();
             callback();

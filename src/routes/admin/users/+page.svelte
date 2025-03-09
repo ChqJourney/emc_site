@@ -4,7 +4,7 @@
     import { showModal } from "../../../components/modalStore";
     import UserForm from "../../../components/UserForm.svelte";
 
-    let users: any = [];
+    let users: any = $state([]);
     let currentPage = 1;
     let pageSize = 10;
     let totalPages = 0;
@@ -20,11 +20,18 @@
 
     // 加载用户列表
     async function loadUsers() {
+        users=[];
         try {
             loading = true;
-            const response = await apiService.get("/auth/list");
-            users = response;
-            totalPages = Math.ceil(users.length / pageSize);
+            const response = await apiService.list();
+            
+            console.log(response);
+            if(!response) {
+               
+            }else{
+                users=response;
+                totalPages = Math.ceil(users.length / pageSize);
+            }
         } catch (error) {
             console.error("Failed to load users:", error);
         } finally {
@@ -33,10 +40,11 @@
     }
 
     // 获取当前页的用户
-    $: paginatedUsers = users.slice(
+   
+    let paginatedUsers =$derived(users.length>0?users.slice(
         (currentPage - 1) * pageSize,
         currentPage * pageSize,
-    );
+    ):[]);
 
     // 重置用户密码
     async function resetPassword(username: string) {
@@ -97,7 +105,7 @@
         <button
             class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors"
             onclick={() =>
-                showModal(UserForm as unknown as Component<{}, {}, "">, { userInfo: undefined, callback: loadUsers })}
+                showModal(UserForm as unknown as Component<{}, {}, "">, { userInfo: undefined, callback: async()=>await loadUsers() })}
         >
             添加用户
         </button>
@@ -136,7 +144,7 @@
                     {#each paginatedUsers as user}
                         <tr>
                             <td class="px-6 py-4 whitespace-nowrap"
-                                >{user.userName}</td
+                                >{user.username}</td
                             >
                             <td class="px-6 py-4 whitespace-nowrap"
                                 >{user.role}</td

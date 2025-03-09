@@ -3,7 +3,7 @@ using Dapper;
 using emc_api.Services;
 using Microsoft.Data.Sqlite;
 
-public class UserRepository : BaseRepository,IUserRepository
+public class UserRepository : BaseRepository, IUserRepository
 {
     public UserRepository(IConfiguration config) : base(config) { }
     public async Task<User?> GetByUserNameAsync(string userName)
@@ -13,19 +13,22 @@ public class UserRepository : BaseRepository,IUserRepository
             "SELECT * FROM Users WHERE UserName = @UserName",
             new { UserName = userName });
     }
-    public async Task<int> CreateUserAsync(User user)
+    public async Task<int> CreateUserAsync(UserDto user, string hash)
     {
         using var conn = await CreateConnection();
         var sql = @"
             INSERT INTO Users 
-                (UserName, FullName, Team, Role, PasswordHash, CreatedAt, IsActive)
+                (UserName, FullName,MachineName, Team, Role, PasswordHash)
             VALUES 
-                (@UserName, @FullName, @Team, @Role, @PasswordHash, @CreatedAt, @IsActive);
+                (@username, @englishname,@machinename, @team, @role, @hash);
             SELECT last_insert_rowid();";
-        
-        return await conn.ExecuteScalarAsync<int>(sql, user);
+
+        return await conn.ExecuteScalarAsync<int>(sql, 
+        new { 
+            username = user.username, 
+            englishname = user.englishname, machinename = user.machinename, team = user.team, role = user.role, hash = hash });
     }
-    public async Task UpdateRefreshTokenAsync(int userId, string? refreshToken, DateTime? expiryTime)
+    public async Task UpdateRefreshTokenAsync(int userId, string? refreshToken, long expiryTime)
     {
         using var conn = await CreateConnection();
         await conn.ExecuteAsync(

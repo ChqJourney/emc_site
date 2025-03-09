@@ -31,7 +31,7 @@ export class ErrorHandler {
 
         if (error instanceof AppError) {
             // 处理自定义错误
-            this.showError(`${error.message} ${error.details.originalError ?? ""}`);
+            this.showError(`${error.message}${error.details ? ":" : ""} ${error.details ?? ""}` || ErrorMessages[error.code]);
             
             // 根据错误代码执行特定操作
             switch (error.code) {
@@ -120,6 +120,22 @@ export class ErrorHandler {
                 `${fieldName}不能为空`
             );
         }
+        if(new Date(value) > new Date()) {
+            throw new AppError( 
+                ErrorCode.DATE_ELAPSED,
+                '日期已过'
+            );
+        }
+        return true;
+    }
+    public validateDateElapsed(value: any, fieldName: string): boolean {
+        if (value === undefined || value === null || value === '') {
+            throw new AppError(
+                ErrorCode.REQUIRED_FIELD_MISSING,
+                `${fieldName}不能为空`
+            );
+        }
+
         return true;
     }
 

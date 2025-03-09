@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { get, writable } from "svelte/store";
 	import { goto } from "$app/navigation";
 	import { calendar } from "../../biz/calendar";
 	import type {
@@ -8,22 +7,20 @@
 		Station,
 	} from "../../biz/types";
 	import { onMount } from "svelte";
-	import { modalStore } from "../../components/modalStore";
+	import { hideModal, modalStore, showModal } from "../../components/modalStore";
 	import ReservationInfo from "../../components/ReservationInfo.svelte";
-	import { convertFileSrc } from "@tauri-apps/api/core";
 	import type { PageData } from "./$types";
 	import { getGlobal, setGlobal } from "../../biz/globalStore";
-	import { exists } from "@tauri-apps/plugin-fs";
     import { errorHandler } from "../../biz/errorHandler";
     import type { AppError } from "../../biz/errors";
-    import Source from "../../components/Source.svelte";
     import { apiService } from "../../biz/apiService";
+    import About from "../../components/About.svelte";
+    import Avartar from "../../components/Avartar.svelte";
 
 	let { data }: { data: PageData } = $props();
 	let { stationId,date }:{stationId:string|null,date:string|null} = data;
 	let isDisabled=$state(false);
 	console.log(stationId);
-	const mode=getGlobal("run_mode");
 	// 使用calendar实例的store
 	const currentMonth = calendar.currentMonth;
 	let selectedDate = $derived(calendar.selectedDate);
@@ -32,7 +29,7 @@
 		// 获取整月的预约数据
 		let reservations:Reservation[]=[];
 		try{
-			reservations=await apiService.get(`/reservations/station?id=${stationId}&month=${$currentMonth}`);
+			reservations=await apiService.Get(`/reservations/station?id=${stationId}&month=${$currentMonth}`);
 		
 		return reservations;
 
@@ -50,7 +47,7 @@
 	);
 	const calendarDays = $derived(calendar.getCalendarDays($currentMonth));
 	const monthDisplay = $derived(calendar.getMonthDisplay($currentMonth));
-	const showModal = writable(false);
+	
 
 	let photoAvailable = $state(false);
 	async function loadStationInfo(stationId: string,loadingIndicator:number,selectedDate:string): Promise<Station> {
@@ -58,16 +55,16 @@
 		let stationInfos:Station[];
 		try{
 
-			const station= await apiService.get(`/stations/${stationId}`);
+			const station= await apiService.Get(`/stations/${stationId}`);
 			stationInfos=[station];
 			
 			console.log(stationInfos);
-			photoAvailable =getPhotoPath(stationInfos[0].photo_path)!=="";
+			photoAvailable =stationInfos[0].photo_path !== null;
 			console.log(photoAvailable);
 			//获取sevents并filter
 			let sevents=[];
 			try {
-				const seventsData = await apiService.get(`/sevents/station/${stationId}`);
+				const seventsData = await apiService.Get(`/sevents/station/${stationId}`);
 				sevents = Array.isArray(seventsData) ? seventsData : [];
 			} catch (error) {
 				console.error("Error fetching events:", error);
@@ -89,13 +86,11 @@
 	let loadingIndicator = $state(0);
 	
 
-	const getPhotoPath = (path: string) => {
-			return `/station_pics/${path}`;
-	};
+	
 	// Add keyboard event listener for day navigation
 	const handleKeydown = (event: KeyboardEvent) => {
 		// 如果modal正在显示，且不是在输入框内
-		if ($modalStore.show) {
+		if ($modalStore.isShow) {
 			const target = event.target as HTMLElement;
 			const isInput =
 				target.tagName === "INPUT" ||
@@ -125,7 +120,7 @@
 	});
 
 	const init_page=async()=>{
-      const settings=await apiService.get("/general/settings");
+      const settings=await apiService.Get("/general/settings");
       setGlobal("tests",settings.tests);
       setGlobal("project_engineers",settings.project_engineers);
       setGlobal("testing_engineers",settings.testing_engineers);
@@ -197,7 +192,7 @@
 						</div>
 						{#if photoAvailable}
 							<img
-								src={stationInfo.photo_path}
+								src={`http://${window.location.host}/station_pics/${stationInfo.photo_path}`}
 								class="station-image"
 								alt="station_pic"
 							/>
@@ -219,14 +214,44 @@
 					</div>
 				{/if}
 			{/await}
-			<button
-      class="tooltip-container"
-      onclick={() => modalStore.open(Source, { onNegative: () => modalStore.close() })}
-      aria-label="about"
-    >
-      <span class="tooltip">数据源设置</span>
-      <svg class="logo" style="width: 30px;height: 30px" fill="#fbc400" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" width="200" height="200"><path d="M369.777778 455.111111h284.444444c17.066667 0 28.444444 11.377778 28.444445 28.444445s-11.377778 28.444444-28.444445 28.444444h-284.444444c-17.066667 0-28.444444-11.377778-28.444445-28.444444s11.377778-28.444444 28.444445-28.444444z"></path><path d="M56.888889 483.555556C56.888889 625.777778 170.666667 739.555556 312.888889 739.555556H398.222222v-56.888889H312.888889C204.8 682.666667 113.777778 591.644444 113.777778 483.555556S204.8 284.444444 312.888889 284.444444H398.222222V227.555556H312.888889C170.666667 227.555556 56.888889 341.333333 56.888889 483.555556zM711.111111 227.555556H625.777778v56.888888h85.333333C819.2 284.444444 910.222222 375.466667 910.222222 483.555556S819.2 682.666667 711.111111 682.666667H625.777778v56.888889h85.333333C853.333333 739.555556 967.111111 625.777778 967.111111 483.555556S853.333333 227.555556 711.111111 227.555556z"></path></svg>
-    </button>
+			<div class="dropdown-container tooltip-container">
+				{#if localStorage.getItem("accessToken")}
+				{@const user=getGlobal("user")}
+				<Avartar username={user.username}/>
+				{:else}
+				<button class="dropdown-trigger" aria-label="menu">
+				  <svg class="logo"
+				  style="fill: #fbc400;"
+				  viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" width="200" height="200"><path d="M341.333333 533.333333a128 128 0 0 1 128 128v149.333334a128 128 0 0 1-128 128H192a128 128 0 0 1-128-128v-149.333334a128 128 0 0 1 128-128h149.333333z m469.333334 0a128 128 0 0 1 128 128v149.333334a128 128 0 0 1-128 128h-149.333334a128 128 0 0 1-128-128v-149.333334a128 128 0 0 1 128-128h149.333334z m-469.333334 64H192a64 64 0 0 0-63.893333 60.245334L128 661.333333v149.333334a64 64 0 0 0 60.245333 63.893333L192 874.666667h149.333333a64 64 0 0 0 63.893334-60.245334L405.333333 810.666667v-149.333334a64 64 0 0 0-60.245333-63.893333L341.333333 597.333333z m469.333334 0h-149.333334a64 64 0 0 0-63.893333 60.245334L597.333333 661.333333v149.333334a64 64 0 0 0 60.245334 63.893333L661.333333 874.666667h149.333334a64 64 0 0 0 63.893333-60.245334L874.666667 810.666667v-149.333334a64 64 0 0 0-60.245334-63.893333L810.666667 597.333333zM341.333333 64a128 128 0 0 1 128 128v149.333333a128 128 0 0 1-128 128H192a128 128 0 0 1-128-128V192a128 128 0 0 1 128-128h149.333333z m469.333334 0a128 128 0 0 1 128 128v149.333333a128 128 0 0 1-128 128h-149.333334a128 128 0 0 1-128-128V192a128 128 0 0 1 128-128h149.333334zM341.333333 128H192a64 64 0 0 0-63.893333 60.245333L128 192v149.333333a64 64 0 0 0 60.245333 63.893334L192 405.333333h149.333333a64 64 0 0 0 63.893334-60.245333L405.333333 341.333333V192a64 64 0 0 0-60.245333-63.893333L341.333333 128z m469.333334 0h-149.333334a64 64 0 0 0-63.893333 60.245333L597.333333 192v149.333333a64 64 0 0 0 60.245334 63.893334L661.333333 405.333333h149.333334a64 64 0 0 0 63.893333-60.245333L874.666667 341.333333V192a64 64 0 0 0-60.245334-63.893333L810.666667 128z" fill="#fbc400"></path></svg>
+				</button>
+				{/if}
+				<div class="dropdown-menu">
+				  {#if !getGlobal("user")}
+					<button class="dropdown-item" onclick={() => goto("/auth/login")}>
+					  <svg class="menu-icon" viewBox="0 0 24 24"><path d="M11 7L9.6 8.4l2.6 2.6H2v2h10.2l-2.6 2.6L11 17l5-5l-5-5zm9 12h-8v2h8c1.1 0 2-0.9 2-2V5c0-1.1-0.9-2-2-2h-8v2h8v14z"/></svg>
+					  登录
+					</button>
+		
+				  {:else}
+				  <button class="dropdown-item" onclick={() => goto("/auth/me")}>
+					<!-- <svg class="menu-icon" viewBox="0 0 24 24"><path d="M11 7L9.6 8.4l2.6 2.6H2v2h10.2l-2.6 2.6L11 17l5-5l-5-5zm9 12h-8v2h8c1.1 0 2-0.9 2-2V5c0-1.1-0.9-2-2-2h-8v2h8v14z"/></svg> -->
+					{getGlobal("user")?.username??"unknown"}
+				  </button>
+					<button class="dropdown-item" onclick={async() =>await apiService.logout(getGlobal("user").username)}> 
+					  <svg class="menu-icon" viewBox="0 0 24 24"><path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/></svg>
+					  退出
+					</button>
+				  {/if}
+				  <button class="dropdown-item" onclick={() => goto("/settings/reservations")}>
+					<svg class="menu-icon" viewBox="0 0 24 24"><path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.07-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.74,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.07,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.44-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.47-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/></svg>
+					设置
+				  </button>
+				  <button class="dropdown-item" onclick={() => showModal(About, { onNegative: () => hideModal() })}>
+					<svg class="menu-icon" viewBox="0 0 24 24"><path d="M11 7h2v2h-2zm0 4h2v6h-2zm1-9C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/></svg>
+					关于
+				  </button>
+				</div>
+			  </div>
 		</div>
 	</header>
 
@@ -338,7 +363,7 @@
 												console.log('Opening modal with reservation:', reservation[0]);
 												if (reservation.length > 0) {
 													console.log(reservation[0]);
-													modalStore.open(
+													showModal(
 														ReservationInfo,
 														{
 															reservation:
@@ -407,10 +432,15 @@
 	}
 	.container {
 		display: flex;
-		flex-direction: column;
-		min-height: 100vh;
-		background-color: #f0f2f5;
-		width: 100%;
+    flex-direction: column;
+    min-height: 100vh;
+    width: 100%;  /* 改为100%而不是100vw */
+    max-width: 100%;  /* 添加最大宽度限制 */
+    background-color: #f0f2f5;
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    overflow-x: hidden;  /* 防止水平滚动条 */
 	}
 	.home_svg {
 		fill: #fbc400;
@@ -837,4 +867,71 @@
     0%, 100% { opacity: 0.6; }
     50% { opacity: 1; }
   }
+  .dropdown-container {
+  position: relative;
+}
+
+.dropdown-trigger {
+  background: none;
+  border: none;
+  padding: 8px;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: all 0.3s ease;
+}
+
+.dropdown-trigger:hover {
+  background-color: rgba(251, 196, 0, 0.1);
+  transform: translateY(-2px);
+}
+
+.dropdown-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  padding: 8px;
+  min-width: 8rem;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(10px);
+  transition: all 0.3s ease;
+}
+
+.dropdown-container:hover .dropdown-menu {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+.dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 16px;
+  border: none;
+  background: none;
+  color: #333;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border-radius: 4px;
+  text-align: left;
+}
+
+.dropdown-item:hover {
+  background-color: rgba(251, 196, 0, 0.1);
+}
+
+.menu-icon {
+  width: 20px;
+  height: 20px;
+  fill: #666;
+}
+
+.dropdown-item:hover .menu-icon {
+  fill: #fbc400;
+}
 </style>

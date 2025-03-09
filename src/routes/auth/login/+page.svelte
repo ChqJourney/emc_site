@@ -20,13 +20,14 @@
         try{
 
             if (username && password) {
-                const user=await apiService.login(username, password);
-                if(!user){
-                    errorHandler.showError("login failed");
-                    return;
+                try{
+
+                    const user=await apiService.login({username, password});
+                    console.log('usr')
+                    goto("/");
+                }catch(e){
+                    errorHandler.handleError(e as AppError);
                 }
-                localStorage.setItem("user",JSON.stringify(user));
-                goto("/");
             }
         }catch(e){
             errorHandler.handleError(e as AppError);

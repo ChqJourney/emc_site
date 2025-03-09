@@ -52,15 +52,19 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAll", builder =>
     {
-        builder.AllowAnyOrigin()
-               .AllowAnyMethod()
-               .AllowAnyHeader();
+        builder.WithOrigins("http://localhost:1420")
+            .AllowAnyMethod()
+            .AllowAnyHeader()
+            .WithExposedHeaders("Authorization")
+            .AllowCredentials()
+            .SetPreflightMaxAge(TimeSpan.FromMinutes(10)); // 缓存预检请求结果
     });
 });
 
 // Configure SQLite connection
 builder.Configuration.AddJsonFile("appsettings.json", optional: false);
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+Console.WriteLine(connectionString);
 var dir = builder.Configuration.GetValue<string>("data:dir")?.Replace("\\", Path.DirectorySeparatorChar.ToString());
 Console.WriteLine(dir);
 if (string.IsNullOrEmpty(connectionString))
@@ -68,10 +72,7 @@ if (string.IsNullOrEmpty(connectionString))
     throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
 }
 
-// 从配置中读取连接字符串（在 appsettings.json 中添加 DefaultConnection 字段）
-builder.Services.AddScoped<SqliteConnection>(_ =>
-    new SqliteConnection(connectionString)
-);
+
 // Initialize database
 // Register repositories
 builder.Services.AddSingleton<ILoggerService, LoggerService>();
@@ -81,6 +82,8 @@ builder.Services.AddScoped<IAuthService, AuthService>();
 var databaseInitializer = new DatabaseInitializer(new SqliteConnection(connectionString));
 await databaseInitializer.InitializeAsync();
 // 注册自定义认证方案
+var time=builder.Configuration.GetValue<string>("jwt:AccessTokenExpirationMinutes");
+Console.WriteLine(time);
 builder.Services.AddAuthentication(options =>
 {
     options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
@@ -124,6 +127,7 @@ builder.WebHost.ConfigureKestrel(options => {
 var app = builder.Build();
 // Add global exception handling middleware
 // 配置静态文件和SPA fallback
+app.UseCors("AllowAll");
 app.UseDefaultFiles();
 app.UseStaticFiles();
 app.MapFallbackToFile("index.html");
@@ -139,7 +143,6 @@ app.UseSwaggerUI(options =>
 });
 
 // Enable CORS
-app.UseCors("AllowAll");
 
 app.UseSerilogRequestLogging();
 

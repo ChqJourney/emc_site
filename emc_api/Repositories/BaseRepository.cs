@@ -3,10 +3,12 @@ using Microsoft.Data.Sqlite;
 
 public abstract class BaseRepository
 {
+    protected readonly IConfiguration _config;
     private readonly string _connectionString;
     protected BaseRepository(IConfiguration config)
     {
-        _connectionString = config.GetConnectionString("Default");
+        _config = config;
+        _connectionString = config.GetConnectionString("DefaultConnection");
     }
     protected async Task<IDbConnection> CreateConnection()
     {
