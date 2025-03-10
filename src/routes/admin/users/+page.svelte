@@ -50,7 +50,8 @@
     async function resetPassword(username: string) {
         if (confirm(`确定要重置用户 ${username} 的密码吗？`)) {
             try {
-                await apiService.post(
+                await apiService.
+                Post(
                     `/auth/reset-password?username=${username}`,
                 );
                 alert("密码重置成功");

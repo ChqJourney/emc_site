@@ -13,15 +13,18 @@
     import { confirm } from "@tauri-apps/plugin-dialog";
     import { invoke } from "@tauri-apps/api/core";
     import { hideModal } from "./modalStore";
-    import { getTestFrequency } from "../biz/operation";
+    import { getTestFrequency, recordTestsFrequency } from "../biz/operation";
     import SingleSelect from "./SingleSelect.svelte";
-   let {item:reservation,submitHandler,onNegative}= $props<{item:Reservation,submitHandler:(reservation:Reservation,isCreate:boolean)=>Promise<void>,onNegative:()=>void}>();
+    import { apiService } from "../biz/apiService";
+    import { onMount } from "svelte";
+   let {item,isSimpleMode,submitHandler,onNegative}:{item:Reservation,isSimpleMode:boolean,submitHandler:(reservation:Reservation,isCreate:boolean)=>Promise<void>,onNegative:()=>void}= $props();
     // $inspect(reservation);
-    let isCreate=reservation===undefined||reservation.id===undefined||reservation.id===0
-    const initReservation = reservation;
+    let isCreate=item===undefined||item.id===undefined||item.id===0
+    const initReservation = item;
     console.log(initReservation)
     let stations: Station[] = $state([]);
     let isSubmitting = $state(false);
+    let isLoading = $state(true);
     let availableStations = $derived(
         stations.filter((station) => station.status === "in_service" || station.status === "maintenance")
     );
@@ -46,12 +49,12 @@
         created_on: new Date(),
         updated_on: new Date(),
     };
+    let config = $state({});
     let currentReservation = $state(initReservation ?? initReservationDTO);
     let modalExtraInfoShow = $state(false);
     async function loadStations() {
         try {
-            const stations = await invoke<Station[]>("get_all_stations");
-            console.log(stations);
+            const stations = await apiService.Get("/stations");
             return stations;
         } catch (error) {
             errorHandler.handleError(error as AppError);
@@ -97,7 +100,7 @@
                     return;
                 }
             }
-            // await recordTestsFrequency(currentReservation);
+            await recordTestsFrequency(currentReservation);
             await submitHandler(currentReservation as Reservation,isCreate);
            hideModal();
         } catch (error) {
@@ -114,7 +117,7 @@
         T4: "18:00-20:30",
         T5: "20:30-23:59",
     };
-    const timeSlotsOptions = [
+    let timeSlotsOptions = [
         { name: "9:30-12:00", value: "T1", isOccupied: false },
         { name: "13:00-15:00", value: "T2", isOccupied: false },
         { name: "15:00-17:30", value: "T3", isOccupied: false },
@@ -122,41 +125,40 @@
         { name: "20:30-23:59", value: "T5", isOccupied: false },
     ];
     const init = async () => {
-        stations = await loadStations()||[];
+        isLoading = true;
         const init_tests = getGlobal("tests")||[];
         const user = getGlobal("user");
-        const tests=await getTestFrequency(init_tests,currentReservation.station_id);
-
         currentReservation = {
             ...currentReservation,
             reservate_by: user?.user,
         };
         const project_engineers = getGlobal("project_engineers");
         const test_engineers = getGlobal("testing_engineers");
+        const tests=await getTestFrequency(init_tests,currentReservation.station_id);
+        stations = await loadStations()||[];
+        config = { tests, project_engineers, test_engineers };
+        console.log("status")
+        const stationStatus = await apiService.Get(`/reservations/station_status/?id=${currentReservation.station_id}&date=${currentReservation.reservation_date}`);
+        console.log(stationStatus);
+        const newTimeSlotsOptions = timeSlotsOptions.map((option: { name: string; value: string; isOccupied: boolean }) => {
+            const isOccupied = stationStatus.some((status: { timeSlot: string; isOccupied: boolean }) => status.timeSlot.includes(option.value));
+            return { ...option, isOccupied };
+        });
+        timeSlotsOptions = newTimeSlotsOptions;
+        isLoading = false;
 
-        return { tests, project_engineers, test_engineers };
     };
-    $effect(() => {
-        void (async () => {
-            for (let i = 0; i < timeSlotsOptions.length; i++) {
-                const isOccupied = await invoke<boolean>("is_time_slot_available",
-                    {stationid:String(currentReservation.station_id),
-                    timeslot:timeSlotsOptions[i].value,
-                    date:currentReservation.reservation_date}
-                );
-                timeSlotsOptions[i].isOccupied = !isOccupied;
-            }
-        })();
-    })
    
+   onMount(()=>{
+    init();
+   })
 </script>   
 
-<div class="modal-overlay">
     <div class="modal-content">
         <h2>{isCreate?"创建预约":"修改预约"}</h2>
-        {#await init()}
+        {#if isLoading}
             <p>加载中...</p>
-        {:then config}
+        {:else}
             <form onsubmit={handleSubmit}>
                 <!-- 第一行：工位 -->
                 <div class="form-row">
@@ -194,7 +196,7 @@
                         <label for="reservation_date">日期*</label>
                         <input
                             type="date"
-                            disabled={!isCreate&&currentReservation.reservation_date<new Date().toISOString().split('T')[0]}
+                            disabled={isSimpleMode}
                             bind:value={currentReservation.reservation_date}
                             min={isCreate ? new Date().toISOString().split('T')[0] : null}
                         />
@@ -413,12 +415,11 @@
                     </div>
                 </div>
             </form>
-        {/await}
+        {/if}
     </div>
-</div>
 
 <style>
-    .modal-overlay {
+    /* .modal-overlay {
         position: fixed;
         top: 0;
         left: 0;
@@ -429,17 +430,14 @@
         justify-content: center;
         align-items: center;
         z-index: 1000;
-    }
+    } */
 
     .modal-content {
-        background: white;
-        padding: 2rem;
-        border-radius: 8px;
-        width: 90%;
-        max-width: 600px;
-        max-height: 90vh;
         overflow-y: auto;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        padding: 0 1rem;
+        width: 100%;
+        max-height: 95vh;
+        padding-bottom: 8rem; /* 底部多留些空间 */
     }
 
     h2 {

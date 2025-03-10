@@ -151,8 +151,8 @@
     .select-input {
       border: 1px solid #ddd;
       border-radius: 4px;
-      padding: 4px 4px;
-      min-height: 30px;
+      padding: 10px 6px;
+      min-height: 36px;
       display: flex;
       align-items: center;
       justify-content: space-between;

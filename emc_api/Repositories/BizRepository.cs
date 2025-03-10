@@ -6,22 +6,22 @@ using Microsoft.Data.Sqlite;
 
 namespace emc_api.Repositories
 {
-    public class BizRepository : BaseRepository,IBizRepository
+    public class BizRepository : BaseRepository, IBizRepository
     {
         private readonly ILoggerService _logger;
 
-        public BizRepository(IConfiguration config, ILoggerService logger):base(config)
+        public BizRepository(IConfiguration config, ILoggerService logger) : base(config)
         {
             _logger = logger;
         }
 
-       
+
 
         public async Task<IEnumerable<Reservation>> GetReservationsByDateAsync(string date)
         {
             try
             {
-                using var _connection=await CreateConnection();
+                using var _connection = await CreateConnection();
                 var sql = "SELECT * FROM reservations WHERE reservation_date = @Date";
                 return await _connection.QueryAsync<Reservation>(sql, new { Date = date });
             }
@@ -43,7 +43,7 @@ namespace emc_api.Repositories
                     ? "SELECT * FROM reservations WHERE reservation_date >= @StartDate AND reservation_date <= @EndDate ORDER BY reservation_date DESC"
                     : "SELECT * FROM reservations WHERE reservation_date >= @StartDate AND reservation_date <= @EndDate AND project_engineer = @ProjectEngineer ORDER BY reservation_date DESC";
 
-                using var _connection=await CreateConnection();
+                using var _connection = await CreateConnection();
                 return await _connection.QueryAsync<Reservation>(sql, new { StartDate = startDate, EndDate = endDate, ProjectEngineer = projectEngineer });
             }
             catch (Exception ex)
@@ -63,7 +63,7 @@ namespace emc_api.Repositories
                 var sql = projectEngineer == null
                     ? "SELECT * FROM reservations WHERE reservation_date >= @StartDate AND reservation_date <= @EndDate ORDER BY reservation_date DESC"
                     : "SELECT * FROM reservations WHERE reservation_date >= @StartDate AND reservation_date <= @EndDate AND project_engineer = @ProjectEngineer ORDER BY reservation_date DESC";
-                using var _connection=await CreateConnection();
+                using var _connection = await CreateConnection();
                 return await _connection.QueryAsync<Reservation>(sql, new { StartDate = startDate, EndDate = endDate, ProjectEngineer = projectEngineer });
             }
             catch (Exception ex)
@@ -72,12 +72,41 @@ namespace emc_api.Repositories
                 throw;
             }
         }
-
-        public async Task<IEnumerable<Reservation>> GetAllReservationsAsync(string timeRange, string projectEngineer = null)
+        public async Task<bool> GetStationStatusPerDateAndTimeslotAsync(int id, string date, string timeSlot)
         {
             try
             {
-                using var _connection=await CreateConnection();
+                using var _connection = await CreateConnection();
+                var sql = "SELECT * FROM reservations WHERE station_id = @Id AND reservation_date = @Date AND time_slot = @TimeSlot";
+                var result = await _connection.QueryAsync<Reservation>(sql, new { Id = id, Date = date, TimeSlot = timeSlot });
+                return result.Count() == 0;
+            }
+            catch (Exception ex)
+            {
+                await _logger.LogErrorAsync("Error getting station status {Id} {Date} {TimeSlot}", ex);
+                throw;
+            }
+        }
+        public async Task<IEnumerable<StationStatus>> GetStationStatusPerDateAsync(int id, string date)
+        {
+            try
+            {
+                using var _connection = await CreateConnection();
+                var sql = "SELECT * FROM reservations WHERE station_id = @Id AND reservation_date = @Date";
+                var result = await _connection.QueryAsync<Reservation>(sql, new { Id = id, Date = date });
+                return result.Select(r => new StationStatus(true, r.Time_Slot));
+            }
+            catch (Exception ex)
+            {
+                await _logger.LogErrorAsync("Error getting station status {Id} {Date}", ex);
+                throw;
+            }
+        }
+        public async Task<IEnumerable<Reservation>> GetAllReservationsAsync(string timeRange, string projectEngineer = null, string createdBy = null)
+        {
+            try
+            {
+                using var _connection = await CreateConnection();
                 switch (timeRange.ToLower())
                 {
                     case "month":
@@ -87,10 +116,26 @@ namespace emc_api.Repositories
                         var currentYear = DateTime.Now.Year.ToString();
                         return await GetReservationsByYearAsync(currentYear, projectEngineer);
                     case "all":
-                        var sql = projectEngineer == null
-                            ? "SELECT * FROM reservations ORDER BY reservation_date DESC"
-                            : "SELECT * FROM reservations WHERE project_engineer = @ProjectEngineer ORDER BY reservation_date DESC";
-                        return await _connection.QueryAsync<Reservation>(sql, new { ProjectEngineer = projectEngineer });
+                        if (createdBy == null && projectEngineer == null)
+                        {
+                            var sql = "SELECT * FROM reservations ORDER BY reservation_date DESC";
+                            return await _connection.QueryAsync<Reservation>(sql);
+                        }
+                        else if (createdBy == null)
+                        {
+                            var sql = "SELECT * FROM reservations WHERE project_engineer = @ProjectEngineer ORDER BY reservation_date DESC";
+                            return await _connection.QueryAsync<Reservation>(sql, new { ProjectEngineer = projectEngineer });
+                        }
+                        else if (projectEngineer == null)
+                        {
+                            var sql = "SELECT * FROM reservations WHERE created_by = @CreatedBy ORDER BY reservation_date DESC";
+                            return await _connection.QueryAsync<Reservation>(sql, new { CreatedBy = createdBy });
+                        }
+                        else
+                        {
+                            var sql = "SELECT * FROM reservations WHERE project_engineer = @ProjectEngineer AND created_by = @CreatedBy ORDER BY reservation_date DESC";
+                            return await _connection.QueryAsync<Reservation>(sql, new { ProjectEngineer = projectEngineer, CreatedBy = createdBy });
+                        }
 
                     default:
                         return Enumerable.Empty<Reservation>();
@@ -116,7 +161,7 @@ namespace emc_api.Repositories
                     @Tests, @Job_No, @Project_Engineer, @Testing_Engineer, @Purpose_Description,
                     @Contact_Name, @Contact_Phone, @Sales, @Reservate_By, @Reservation_Status
                 )";
-                using var _connection=await CreateConnection();
+                using var _connection = await CreateConnection();
                 var result = await _connection.ExecuteAsync(sql, reservation);
                 return result > 0;
             }
@@ -142,9 +187,9 @@ WHERE NOT EXISTS (
     WHERE reservation_date = @Reservation_Date
       AND time_slot = @Time_Slot
       AND station_id = @Station_Id
-);"; 
-            using var _connection=await CreateConnection();
-            
+);";
+            using var _connection = await CreateConnection();
+
             using var transaction = _connection.BeginTransaction();
             try
             {
@@ -216,7 +261,7 @@ WHERE NOT EXISTS (
                     reservate_by = @Reservate_By,
                     reservation_status = @Reservation_Status
                 WHERE id = @Id and updated_On=@Updated_On";
-                using var _connection=await CreateConnection();
+                using var _connection = await CreateConnection();
                 var result = await _connection.ExecuteAsync(sql, reservation);
                 return result > 0;
             }
@@ -231,7 +276,7 @@ WHERE NOT EXISTS (
         {
             try
             {
-                using var _connection=await CreateConnection();
+                using var _connection = await CreateConnection();
                 var sql = "DELETE FROM reservations WHERE id = @Id";
                 var result = await _connection.ExecuteAsync(sql, new { Id = id });
                 return result > 0;
@@ -247,7 +292,7 @@ WHERE NOT EXISTS (
         {
             try
             {
-                using var _connection=await CreateConnection();
+                using var _connection = await CreateConnection();
                 return await _connection.QueryAsync<Station>("SELECT * FROM stations ORDER BY created_on DESC");
             }
             catch (Exception ex)
@@ -261,7 +306,7 @@ WHERE NOT EXISTS (
         {
             try
             {
-                using var _connection=await CreateConnection();
+                using var _connection = await CreateConnection();
                 return await _connection.QueryFirstOrDefaultAsync<Station>("SELECT * FROM stations WHERE id = @Id", new { Id = id });
             }
             catch (Exception ex)
@@ -275,7 +320,7 @@ WHERE NOT EXISTS (
         {
             try
             {
-                using var _connection=await CreateConnection();
+                using var _connection = await CreateConnection();
                 return await _connection.QueryFirstOrDefaultAsync<string>("SELECT short_name FROM stations WHERE id = @Id", new { Id = id });
             }
             catch (Exception ex)
@@ -289,7 +334,7 @@ WHERE NOT EXISTS (
         {
             try
             {
-                using var _connection=await CreateConnection();
+                using var _connection = await CreateConnection();
                 var sql = @"INSERT INTO stations (name, short_name, description, photo_path, status)
                            VALUES (@Name, @Short_Name, @Description, @Photo_Path, @Status)";
                 var result = await _connection.ExecuteAsync(sql, station);
@@ -313,7 +358,7 @@ WHERE NOT EXISTS (
                            photo_path = @Photo_Path,
                            status = @Status
                            WHERE id = @Id";
-                           using var _connection=await CreateConnection();
+                using var _connection = await CreateConnection();
                 var result = await _connection.ExecuteAsync(sql, station);
                 return result > 0;
             }
@@ -329,7 +374,7 @@ WHERE NOT EXISTS (
             try
             {
                 var sql = "DELETE FROM stations WHERE id = @Id";
-                using var _connection=await CreateConnection();
+                using var _connection = await CreateConnection();
                 var result = await _connection.ExecuteAsync(sql, new { Id = id });
                 return result > 0;
             }
@@ -343,7 +388,7 @@ WHERE NOT EXISTS (
         {
             try
             {
-                using var _connection=await CreateConnection();
+                using var _connection = await CreateConnection();
                 await _connection.ExecuteAsync("select 1");
                 return true;
             }
@@ -371,7 +416,7 @@ WHERE NOT EXISTS (
 
         public async Task<IEnumerable<Sevent>> GetAllSeventsAsync()
         {
-            using var _connection=await CreateConnection();
+            using var _connection = await CreateConnection();
             var sevents = await _connection.QueryAsync<Sevent>("SELECT * FROM s_events");
             Console.WriteLine("allaa");
             Console.WriteLine(sevents.Count());
@@ -379,7 +424,7 @@ WHERE NOT EXISTS (
         }
         public async Task<Sevent> GetSeventByIdAsync(int id)
         {
-            using var _connection=await CreateConnection();
+            using var _connection = await CreateConnection();
             return await _connection.QueryFirstOrDefaultAsync<Sevent>("SELECT * FROM s_events WHERE id = @Id", new { Id = id });
         }
 
@@ -387,7 +432,7 @@ WHERE NOT EXISTS (
         {
             var sql = @"INSERT INTO s_events (name, from_date, to_date, station_id, updated_By)
                    VALUES (@Name, @FromDate, @ToDate, @StationId,@UpdatedBy)";
-            using var _connection=await CreateConnection();
+            using var _connection = await CreateConnection();
             var result = await _connection.ExecuteAsync(sql, sevent);
             return result > 0;
         }
@@ -401,7 +446,7 @@ WHERE NOT EXISTS (
                            station_id = @StationId,
                            updated_by = @UpdatedBy
                            WHERE id = @Id";
-            using var _connection=await CreateConnection();
+            using var _connection = await CreateConnection();
             var result = await _connection.ExecuteAsync(sql, sevent);
             return result > 0;
         }
@@ -409,7 +454,7 @@ WHERE NOT EXISTS (
         public async Task<bool> DeleteSeventAsync(int id)
         {
             var sql = "DELETE FROM s_events WHERE id = @Id";
-            using var _connection=await CreateConnection();
+            using var _connection = await CreateConnection();
             var result = await _connection.ExecuteAsync(sql, new { Id = id });
             return result > 0;
         }
@@ -417,17 +462,17 @@ WHERE NOT EXISTS (
         public async Task<IEnumerable<Reservation>> GetReservationsByStationAndMonthAsync(int stationId, string month)
         {
             var sql = "SELECT * FROM reservations WHERE station_id = @StationId AND MONTH(reservation_date) = @Month";
-            using var _connection=await CreateConnection();
+            using var _connection = await CreateConnection();
             var result = await _connection.QueryAsync<Reservation>(sql, new { StationId = stationId, Month = month });
-            return result?? Enumerable.Empty<Reservation>();
+            return result ?? Enumerable.Empty<Reservation>();
         }
 
         public async Task<IEnumerable<Sevent>> GetSeventsByStationIdAsync(int id)
         {
             var sql = "SELECT * FROM s_events WHERE station_id = @Id";
-            using var _connection=await CreateConnection();
+            using var _connection = await CreateConnection();
             var result = await _connection.QueryAsync<Sevent>(sql, new { Id = id });
-            return result?? Enumerable.Empty<Sevent>();
+            return result ?? Enumerable.Empty<Sevent>();
         }
 
     }

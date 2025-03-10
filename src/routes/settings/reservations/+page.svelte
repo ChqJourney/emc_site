@@ -7,15 +7,16 @@
     import type { AppError } from "../../../biz/errors";
     
     import { getGlobal } from "../../../biz/globalStore";
-      import { invoke } from "@tauri-apps/api/core";
     import { hideModal, showModal } from "../../../components/modalStore";
+    import { apiService } from "../../../biz/apiService";
     let timeRangeForReservations = $state("month");
     let loadingIndicator = $state(0);
     async function loadReservations(indicator: number) {
       try {
         const user = getGlobal("user");
         console.log(user)
-        return []
+        const reservations=await apiService.Get(`/reservations?timeRange=${timeRangeForReservations}&projectEngineer=${user.englishname}&createdBy=${user.username}`)
+        return reservations
       } catch (error) {
         errorHandler.handleError(error as AppError);
         return [];
@@ -37,7 +38,7 @@
       const user = getGlobal("user");
       try {
       console.log(user)
-      const reservations=await invoke<Reservation[]>("get_reservations_by_reservate_by_and_pe", {timerange:timeRangeForReservations, reservateby:user.user, pe:user.fullname});
+      const reservations=await apiService.Get(`/reservations?timeRange=${timeRangeForReservations}&projectEngineer=${user.englishname}&createdBy=${user.username}`)
         await exportReservations(reservations);
         errorHandler.showInfo("导出成功");
       } catch (e) {
@@ -144,7 +145,7 @@
             label: "工位",
             sortable: true,
             formatter: async (id) => {
-              const name = (await invoke<Station>("get_station_by_id", { id: id.toString() })).name;
+              const name = (await apiService.Get(`/stations/${id}`))?.name;
                 return name || "Unknown station";
             },
           },

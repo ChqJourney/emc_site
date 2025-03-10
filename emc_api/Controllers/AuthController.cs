@@ -8,6 +8,7 @@ using System.Text;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using Microsoft.AspNetCore.Authorization;
+using System.Threading.Tasks;
 
 namespace emc_api.Controllers
 {
@@ -15,14 +16,12 @@ namespace emc_api.Controllers
     [Route("api/[controller]")]
     public class AuthController : ControllerBase
     {
-        private readonly IAuthService _auth;
         private readonly ILogger<AuthController> _logger;
         private readonly IConfiguration _configuration;
         private readonly IUserRepository _userRepo;
 
-        public AuthController(IAuthService authService,IUserRepository userRepo, IConfiguration configuration, ILogger<AuthController> logger)
+        public AuthController(IUserRepository userRepo, IConfiguration configuration, ILogger<AuthController> logger)
         {
-            _auth = authService;
             _logger = logger;
             _configuration = configuration;
             _userRepo=userRepo;
@@ -53,8 +52,8 @@ namespace emc_api.Controllers
             var refreshToken = GenerateRefreshToken();
 
             user.RefreshToken = refreshToken;
-            user.RefreshTokenExpiryTime = ((DateTimeOffset)DateTime.UtcNow.AddMinutes(_configuration.GetValue<int>("Jwt:AccessTokenExpirationMinutes"))).ToUnixTimeMilliseconds();
-
+            user.RefreshTokenExpiryTime = ((DateTimeOffset)DateTime.UtcNow.AddDays(_configuration.GetValue<int>("Jwt:RefreshTokenExpirationDays"))).ToUnixTimeMilliseconds();
+            _logger.LogInformation(user.RefreshTokenExpiryTime.ToString());
             await _userRepo.UpdateRefreshTokenAsync(user.Id, refreshToken, user.RefreshTokenExpiryTime);
             return Ok(new
             {
@@ -72,6 +71,7 @@ namespace emc_api.Controllers
             {
                 username=user.UserName,
                 role=user.Role,
+                machinename=user.MachineName,
                 englishname=user.FullName,
                 team=user.Team
             });
@@ -116,11 +116,13 @@ namespace emc_api.Controllers
             var user = await _userRepo.GetByUserNameAsync(username);
 
             if (user == null || user.RefreshToken != tokenModel.refreshToken ||
-                user.RefreshTokenExpiryTime <= DateTime.UtcNow.Ticks)
+                user.RefreshTokenExpiryTime <= ((DateTimeOffset)DateTime.UtcNow).ToUnixTimeMilliseconds()){
+
                 return BadRequest("Invalid token");
+                }
             user.RefreshToken = null;
             user.RefreshTokenExpiryTime = 0;
-            await _userRepo.UpdateRefreshTokenAsync(user.Id, null, 0);
+            await _userRepo.UpdateRefreshTokenAsync(user.Id, "", 0);
             return Ok();
         }
         
@@ -144,7 +146,7 @@ namespace emc_api.Controllers
             var user = await _userRepo.GetByUserNameAsync(username);
             if (user == null)
                 return NotFound("User not found");
-            var userList=await _auth.GetUsersAsync();
+            var userList=new List<ControlledUser>();
             if (userList.Count == 0){
                 throw new Exception("controlled user listed empty or error");
             }
@@ -196,8 +198,8 @@ namespace emc_api.Controllers
                 throw new SecurityTokenException("Invalid token");
             return principal;
         }
-
-        [HttpPost("changepwd")]
+        // [Authorize]
+        [HttpPost("change-pwd")]
         [Consumes("application/json")]
         public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordDto dto)
         {
@@ -222,5 +224,6 @@ namespace emc_api.Controllers
     public record UserLoginRequest(string username, string password);
     public record TokenModel(string accessToken, string refreshToken);
     public record ChangePasswordDto(string UserName, string Password, string NewPassword);
+    public record ControlledUser(string username,string machinename,string role,string team,string englishname);
 
 }

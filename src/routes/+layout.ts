@@ -7,8 +7,17 @@ export const ssr = false;
 import { browser } from '$app/environment';
 import { goto } from '$app/navigation';
 import { apiService } from '../biz/apiService';
+import { checkAuth } from '../biz/apiService';
 
-export function load() {
+// 不需要认证的路由路径
+const publicRoutes = ['/auth/login', '/auth/register', '/auth/change-pwd'];
+
+// 检查当前路由是否需要认证
+function isPublicRoute(path: string): boolean {
+  return publicRoutes.some(route => path.startsWith(route));
+}
+
+export async function load({ url }) {
   if (browser) {
     const currentUrl = window.location.href;
     const currentHost = window.location.host; // 包含主机名和端口
@@ -18,8 +27,8 @@ export function load() {
     console.log(`Current Host: ${currentHost}`);
     console.log(`Current Hostname: ${currentHostname}`);
     console.log(`Current Port: ${currentPort}`);
-    // 在这里配置apiService
-
+    
+    // 配置apiService
     apiService.configure({
       baseURL: currentPort === "1420"
         ? "http://localhost:5001/api" : `http://${currentHost}/api`,
@@ -32,8 +41,16 @@ export function load() {
       },
       onAuthFail: () => {
         goto('/auth/login');
+      }
+    });
+
+    // 认证检查
+    if (!isPublicRoute(url.pathname)) {
+      const isAuthenticated = await checkAuth();
+      if (!isAuthenticated) {
+        goto('/auth/login');
+      }
     }
-    })
 
     return {
       url: currentUrl,

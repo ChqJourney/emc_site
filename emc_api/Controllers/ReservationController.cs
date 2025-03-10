@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using emc_api.Models;
 using emc_api.Repositories;
+using Microsoft.AspNetCore.Authorization;
 
 namespace emc_api.Controllers
 {
@@ -39,16 +40,17 @@ namespace emc_api.Controllers
         public async Task<IActionResult> GetByStationAndMonth([FromQuery] int id, [FromQuery] string month)
         {
             var result = await _repository.GetReservationsByStationAndMonthAsync(id, month);
-            Console.WriteLine(result.Count());
             return Ok(result);
         }
+        [Authorize(Roles = "Admin,Engineer")]
         [HttpGet]
-        public async Task<IActionResult> GetAll([FromQuery] string timeRange, [FromQuery] string? projectEngineer)
+        public async Task<IActionResult> GetAll([FromQuery] string timeRange, [FromQuery] string? projectEngineer, [FromQuery] string? createdBy)
         {
-            var result = await _repository.GetAllReservationsAsync(timeRange, projectEngineer);
+            var result = await _repository.GetAllReservationsAsync(timeRange, projectEngineer, createdBy);
             return Ok(result);
         }
 
+        [Authorize(Roles = "Admin,Engineer")]
         [HttpPost]
         public async Task<IActionResult> Create([FromBody] Reservation reservation)
         {
@@ -56,13 +58,28 @@ namespace emc_api.Controllers
             return Ok(result);
         }
 
+        [Authorize(Roles = "Admin,Engineer")]
         [HttpPut]
         public async Task<IActionResult> Update([FromBody] Reservation reservation)
         {
             var result = await _repository.UpdateReservationAsync(reservation);
             return Ok(result);
         }
+        [Authorize(Roles = "Admin,Engineer")]
+        [HttpGet("station_status")]
+        public async Task<IActionResult> GetStationStatus([FromQuery] int id, [FromQuery] string date){
+            var result = await _repository.GetStationStatusPerDateAsync(id, date);
+            return Ok(result);
+        }
+        [Authorize(Roles = "Admin,Engineer")]
+        [HttpGet("station/{id}")]
+        public async Task<IActionResult> GetStationById(int id)
+        {
+            var result = await _repository.GetStationByIdAsync(id);
+            return Ok(result);
+        }
 
+        [Authorize(Roles = "Admin,Engineer")]
         [HttpDelete("{id}")]
         public async Task<IActionResult> Delete(int id)
         {

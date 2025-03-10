@@ -3,13 +3,16 @@ using emc_api.Models;
 
 namespace emc_api.Repositories
 {
+    public record StationStatus(bool isOccupied,string timeSlot);
     public interface IBizRepository
     {
         Task<IEnumerable<Reservation>> GetReservationsByDateAsync(string date);
         Task<IEnumerable<Reservation>> GetReservationsByMonthAsync(string month, string projectEngineer = null);
         Task<IEnumerable<Reservation>> GetReservationsByYearAsync(string year, string projectEngineer = null);
-        Task<IEnumerable<Reservation>> GetAllReservationsAsync(string timeRange, string projectEngineer = null);
+        Task<IEnumerable<Reservation>> GetAllReservationsAsync(string timeRange, string projectEngineer = null,string createdBy=null);
         Task<IEnumerable<Reservation>> GetReservationsByStationAndMonthAsync(int stationId, string month);
+        Task<bool> GetStationStatusPerDateAndTimeslotAsync(int id, string date, string timeSlot);
+        Task<IEnumerable<StationStatus>> GetStationStatusPerDateAsync(int id, string date);
         Task<bool> CreateReservationAsync(Reservation reservation);
         Task<int> CreateReservationsAsync(Reservation reservation);
         Task<bool> UpdateReservationAsync(Reservation reservation);
