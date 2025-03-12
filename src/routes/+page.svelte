@@ -10,6 +10,7 @@
     import type { AppError } from "../biz/errors";
     import { apiService, checkAuth } from "../biz/apiService";
     import Avartar from "../components/Avartar.svelte";
+    import { calendarPageInit } from "../biz/operation";
   // 使用calendar实例的store
   const currentMonth = calendar.currentMonth;
   const mode=getGlobal("run_mode");
@@ -47,23 +48,7 @@
  
 
   const init_page=async()=>{
-    const token=localStorage.getItem("accessToken");
-    if(token){
-
-      const user=await apiService.Post("auth/me");
-      console.log(user)
-      if(user){
-        setGlobal("user",user);
-      }
-    }
-    
-      const settings=await apiService.Get("/general/settings");
-      setGlobal("tests",settings.tests);
-      setGlobal("project_engineers",settings.project_engineers);
-      setGlobal("testing_engineers",settings.testing_engineers);
-      setGlobal("loadSetting",settings.loadSetting);
-      setGlobal("station_orders",settings.station_orders);
-    await new Promise(resolve => setTimeout(resolve, 200));
+    await calendarPageInit();
   }
   // Add keyboard event listener for month navigation
   const handleKeydown = (event: KeyboardEvent) => {

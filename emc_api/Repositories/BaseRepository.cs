@@ -5,10 +5,10 @@ public abstract class BaseRepository
 {
     protected readonly IConfiguration _config;
     private readonly string _connectionString;
-    protected BaseRepository(IConfiguration config)
+    protected BaseRepository(IConfiguration config,String dbName)
     {
         _config = config;
-        _connectionString = config.GetConnectionString("DefaultConnection");
+        _connectionString = config.GetConnectionString($"{dbName}Connection");
     }
     protected async Task<IDbConnection> CreateConnection()
     {

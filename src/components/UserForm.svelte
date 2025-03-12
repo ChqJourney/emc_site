@@ -2,6 +2,7 @@
     import { apiService } from "../biz/apiService";
     import { hideModal } from "./modalStore";
     let { userInfo, callback } = $props();
+    console.log(callback)
     let isNew = !userInfo;
     let newUser = $state(
         isNew
@@ -93,7 +94,7 @@
                 bind:value={newUser.role}
                 class="mt-1 block w-full rounded-md p-2 border-gray-300 border shadow-sm focus:border-blue-500 focus:ring-blue-500"
             >
-                <option value="User">工程师用户</option>
+                <option value="Engineer">工程师用户</option>
                 <option value="Admin">管理员</option>
                 <option value="Client">只读客户</option>
             </select>

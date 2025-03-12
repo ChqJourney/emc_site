@@ -27,19 +27,6 @@ namespace emc_api.Controllers
             _userRepo=userRepo;
         }
 
-        // [HttpPost("register")]
-        // public async Task<IActionResult> Register(UserRegisterRequest request)
-        // {
-        //     // 实现用户注册逻辑，包括密码哈希存储
-        //     var user = new UserDto
-        //     {
-        //         UserName = request.Username,
-        //         PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
-        //         Role = request.Role
-        //     };
-        //     await _userRepo.CreateUserAsync(user);
-        //     return Ok();
-        // }
         
         [HttpPost("login")]
         public async Task<IActionResult> Login(UserLoginRequest request)
@@ -81,12 +68,14 @@ namespace emc_api.Controllers
         {
             _logger.LogInformation($"Refresh token attempt for token: {tokenModel.accessToken?.Substring(0, 20)}...");
             var principal = GetPrincipalFromExpiredToken(tokenModel.accessToken);
-            var username = principal.Identity.Name;
-
+            var username = principal?.Identity?.Name;
+            if(username==null){
+                return BadRequest("Invalid token");
+            }
             var user = await _userRepo.GetByUserNameAsync(username);
-            _logger.LogInformation(user.RefreshToken);
+            _logger.LogInformation(user?.RefreshToken??"no refresh token in database");
             _logger.LogInformation(tokenModel.refreshToken);
-            _logger.LogInformation(user.RefreshTokenExpiryTime.ToString());
+            _logger.LogInformation(user?.RefreshTokenExpiryTime.ToString()??"no refresh token expiry time in database");
             _logger.LogInformation(((DateTimeOffset)DateTime.UtcNow).ToUnixTimeMilliseconds().ToString());
             if (user == null || user.RefreshToken != tokenModel.refreshToken ||
                 user.RefreshTokenExpiryTime <= ((DateTimeOffset)DateTime.UtcNow).ToUnixTimeMilliseconds()){
@@ -111,8 +100,10 @@ namespace emc_api.Controllers
         public async Task<IActionResult> Logout(TokenModel tokenModel)
         {
             var principal = GetPrincipalFromExpiredToken(tokenModel.accessToken);
-            var username = principal.Identity.Name;
-
+            var username = principal?.Identity?.Name;
+            if(username==null){
+                return BadRequest("Invalid token");
+            }
             var user = await _userRepo.GetByUserNameAsync(username);
 
             if (user == null || user.RefreshToken != tokenModel.refreshToken ||
@@ -135,24 +126,30 @@ namespace emc_api.Controllers
         [HttpPost("create")]
         public async Task<IActionResult> Create(UserDto user)
         {
+            var existed=await _userRepo.GetByUserNameAsync(user.username);
+            if(existed!=null){
+                return BadRequest("user existed already");
+            }
             var passwordHash = BCrypt.Net.BCrypt.HashPassword(user.machinename);
             await _userRepo.CreateUserAsync(user,passwordHash);
             return Ok();
         }
-        
+        [HttpDelete("remove/{id}")]
+        public async Task<IActionResult> DeleteUser(int id)
+        {
+            
+            await _userRepo.RemoveUserAsync(id);
+            return Ok();
+        }
         [HttpPost("reset-password")]
         public async Task<IActionResult> ResetPassword(string username)
         {
             var user = await _userRepo.GetByUserNameAsync(username);
             if (user == null)
                 return NotFound("User not found");
-            var userList=new List<ControlledUser>();
-            if (userList.Count == 0){
-                throw new Exception("controlled user listed empty or error");
-            }
-            var defaultPwd=userList.FirstOrDefault(u=>u.username==username)?.machinename;
-            user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(defaultPwd);
-            await _userRepo.UpdatePasswordAsync(user.Id, user.PasswordHash);
+            
+            var passwordHash = BCrypt.Net.BCrypt.HashPassword(user.MachineName);
+            await _userRepo.UpdatePasswordAsync(user.Id, passwordHash);
             return Ok();
         }
         private string GenerateJwtToken(User user)

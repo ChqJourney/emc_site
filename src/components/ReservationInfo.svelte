@@ -134,6 +134,7 @@
     position: relative;
     font-family: Arial, sans-serif;
     font-size: 14px;
+    overflow-y: auto;
   }
 
   .header {
@@ -172,6 +173,8 @@
     display: grid;
     gap: 0.8rem;
     grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    overflow-y: auto;
+    max-height: 600px;
   }
 
   .info-item {

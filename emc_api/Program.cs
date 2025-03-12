@@ -1,17 +1,11 @@
 using emc_api.Repositories;
 using Serilog;
-using emc_api.Models;
-using Microsoft.OpenApi.Models;
-using Swashbuckle.AspNetCore.SwaggerGen;
-using Swashbuckle.AspNetCore.SwaggerUI;
 using System.Net;
 using System.Net.Sockets;
 using emc_api.Services;
 using emc_api.Middleware;
-using Microsoft.AspNetCore.Authentication;
 using Microsoft.Data.Sqlite;
 using emc_api.Data;
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
@@ -20,14 +14,14 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Configure Serilog
 Log.Logger = new LoggerConfiguration()
-    .WriteTo.Async(a=>a.Console())
-    .WriteTo.Async(a=>a.File("logs/emc-.log", rollingInterval: RollingInterval.Day,outputTemplate:"{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {Message:lj}{NewLine}{Exception}"))
+    .WriteTo.Async(a => a.Console())
+    .WriteTo.Async(a => a.File("logs/emc-.log", rollingInterval: RollingInterval.Day, outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {Message:lj}{NewLine}{Exception}"))
     .CreateLogger();
 
 builder.Host.UseSerilog();
 
 // Add services to the container.
-builder.Services.AddControllers(); 
+builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 {
@@ -43,7 +37,8 @@ builder.Services.AddSwaggerGen(options =>
         }
     });
 });
-builder.Services.ConfigureHttpJsonOptions(options => {
+builder.Services.ConfigureHttpJsonOptions(options =>
+{
     options.SerializerOptions.WriteIndented = true;
     options.SerializerOptions.IncludeFields = true;
 });
@@ -63,25 +58,24 @@ builder.Services.AddCors(options =>
 
 // Configure SQLite connection
 builder.Configuration.AddJsonFile("appsettings.json", optional: false);
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
-Console.WriteLine(connectionString);
+var userDbStr = builder.Configuration.GetConnectionString("UserConnection");
+var bizDbStr = builder.Configuration.GetConnectionString("BizConnection");
 var dir = builder.Configuration.GetValue<string>("data:dir")?.Replace("\\", Path.DirectorySeparatorChar.ToString());
 Console.WriteLine(dir);
-if (string.IsNullOrEmpty(connectionString))
-{
-    throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
-}
+
 
 
 // Initialize database
 // Register repositories
 builder.Services.AddSingleton<ILoggerService, LoggerService>();
-builder.Services.AddScoped<IUserRepository,UserRepository>();
-builder.Services.AddScoped<IBizRepository,BizRepository>();
-var databaseInitializer = new DatabaseInitializer(new SqliteConnection(connectionString));
-await databaseInitializer.InitializeAsync();
+builder.Services.AddScoped<IUserRepository, UserRepository>();
+builder.Services.AddScoped<IBizRepository, BizRepository>();
+var userDatabaseInitializer = new DatabaseInitializer(new SqliteConnection(userDbStr), "User");
+await userDatabaseInitializer.InitializeAsync();
+var bizDatabaseInitializer = new DatabaseInitializer(new SqliteConnection(bizDbStr), "Biz");
+await bizDatabaseInitializer.InitializeAsync();
 // 注册自定义认证方案
-var time=builder.Configuration.GetValue<string>("jwt:AccessTokenExpirationMinutes");
+var time = builder.Configuration.GetValue<string>("jwt:AccessTokenExpirationMinutes");
 Console.WriteLine(time);
 builder.Services.AddAuthentication(options =>
 {
@@ -114,7 +108,8 @@ builder.Services.AddAuthorization(options =>
 });
 
 // Configure Kestrel
-builder.WebHost.ConfigureKestrel(options => {
+builder.WebHost.ConfigureKestrel(options =>
+{
     options.Limits.MaxConcurrentConnections = 100;
     options.Limits.MaxConcurrentUpgradedConnections = 100;
     options.Limits.MaxRequestBodySize = 10 * 1024;
@@ -133,7 +128,6 @@ app.MapFallbackToFile("index.html");
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 app.UseAuthentication();
 app.UseAuthorization();
-// Configure the HTTP request pipeline.
 app.UseSwagger();
 app.UseSwaggerUI(options =>
 {
@@ -149,7 +143,7 @@ app.UseSerilogRequestLogging();
 // 获取局域网IP和server port，并写入portal.txt
 var hostEntry = Dns.GetHostEntry(Dns.GetHostName());
 var localIp = hostEntry.AddressList.FirstOrDefault(a => a.AddressFamily == AddressFamily.InterNetwork)?.ToString() ?? "127.0.0.1";
-var port = app.Urls.FirstOrDefault() is string url ? new Uri(url).Port : 5000;
+var port = app.Urls.FirstOrDefault() is string url ? new Uri(url).Port : 5001;
 var portalUrl = $"http://{localIp}:{port}";
 var portalPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "portal.txt");
 System.IO.File.WriteAllText(portalPath, portalUrl);

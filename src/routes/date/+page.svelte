@@ -1,147 +1,155 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import type {
-    Reservation,
-    Sevent,
-    Station,
-  } from "../../biz/types";
+  import type { Reservation, Sevent, Station } from "../../biz/types";
   import { goto } from "$app/navigation";
   import type { PageData } from "../$types";
   import { calendar } from "../../biz/calendar";
-  import { hideModal, modalStore, showModal } from "../../components/modalStore";
+  import {
+    hideModal,
+    modalStore,
+    showModal,
+  } from "../../components/modalStore";
   import ReservationInfo from "../../components/ReservationInfo.svelte";
   import ReservationForm from "../../components/ReservationForm.svelte";
-    import { getGlobal, setGlobal } from "../../biz/globalStore";
-    import { errorHandler } from "../../biz/errorHandler";
-    import Source from "../../components/Source.svelte";
-    import type { AppError } from "../../biz/errors";
-    import { get } from "svelte/store";
-    import { apiService } from "../../biz/apiService";
-    import Avartar from "../../components/Avartar.svelte";
-    import About from "../../components/About.svelte";
+  import { getGlobal, setGlobal } from "../../biz/globalStore";
+  import { errorHandler } from "../../biz/errorHandler";
+  import Source from "../../components/Source.svelte";
+  import type { AppError } from "../../biz/errors";
+  import { get } from "svelte/store";
+  import { apiService } from "../../biz/apiService";
+  import Avartar from "../../components/Avartar.svelte";
+  import About from "../../components/About.svelte";
+  import { dayPageInit, submitReservation, handleReservationBlockClick, reservationBlockClickPrecheck } from "../../biz/operation";
   let { data }: { data: PageData } = $props();
-  const user=getGlobal("user");
-  console.log(user)
+  const user = getGlobal("user");
+  console.log(user);
   const initDate = data.date ?? new Date().toISOString().split("T")[0];
   calendar.setDate(initDate);
   const selectedDate = $derived(calendar.selectedDate);
   async function loadStations(): Promise<Station[]> {
     let stations: Station[] = [];
-    let stationEntities:Station[]=[];
-    let sevents:Sevent[]=[];
-    try{
-       stationEntities=await apiService.Get(`/stations`);
-       sevents=await apiService.Get(`/sevents`);
-   
-      console.log(stationEntities)
-        //获取orders
-        const orders:{id:number,seq:number}[]=getGlobal("station_orders");
-        console.log(orders)
-        //结合orders给stations排序
-        if (orders&&orders.length>0&&stationEntities.length>0) {
-          const sortedStations = stationEntities.map((station:Station) => {
-            const seq=orders.find(o=>o.id===station.id)
-            return {...station,sequence_no:seq?.seq??1}
-          });
-          stations=[...sortedStations].sort((a,b)=>a.sequence_no-b.sequence_no)
-        }else{
-          stations=[...stationEntities]
-        }
-        //结合sevents给stations添加状态
-        if(sevents.length>0){
+    let stationEntities: Station[] = [];
+    let sevents: Sevent[] = [];
+    try {
+      stationEntities = await apiService.Get(`/stations`);
+      sevents = await apiService.Get(`/sevents`);
 
-          stations=stations.map(station=>{
-            const sevents_per_station=sevents.filter(sevent=>sevent.station_id===station.id)
-            if(sevents_per_station.length===0){
-              return {...station,status:'in_service'}
-            }else{
-              const isUnavailable=sevents_per_station.some(sevent=>new Date(get(selectedDate))>=new Date(sevent.from_date)&&new Date(get(selectedDate))<=new Date(sevent.to_date))
-              if(isUnavailable){
-                const unavailableSevent=sevents_per_station.find(sevent=>new Date(get(selectedDate))>=new Date(sevent.from_date)&&new Date(get(selectedDate))<=new Date(sevent.to_date))
-                return {...station,status:unavailableSevent?.name??'unavailable'}
-              }else{
-                return {...station,status:'in_service'}
-              }
-            }
-          })
-          
-        }
-        return stations
-      }catch(e){
-        
-        errorHandler.handleError(e as AppError);
-        return [];
+      console.log(stationEntities);
+      //获取orders
+      const orders: { id: number; seq: number }[] = getGlobal("station_orders");
+      console.log(orders);
+      //结合orders给stations排序
+      if (orders && orders.length > 0 && stationEntities.length > 0) {
+        const sortedStations = stationEntities.map((station: Station) => {
+          const seq = orders.find((o) => o.id === station.id);
+          return { ...station, sequence_no: seq?.seq ?? 1 };
+        });
+        stations = [...sortedStations].sort(
+          (a, b) => a.sequence_no - b.sequence_no,
+        );
+      } else {
+        stations = [...stationEntities];
       }
+      //结合sevents给stations添加状态
+      if (sevents.length > 0) {
+        stations = stations.map((station) => {
+          const sevents_per_station = sevents.filter(
+            (sevent) => sevent.station_id === station.id,
+          );
+          if (sevents_per_station.length === 0) {
+            return { ...station, status: "in_service" };
+          } else {
+            const isUnavailable = sevents_per_station.some(
+              (sevent) =>
+                new Date(get(selectedDate)) >= new Date(sevent.from_date) &&
+                new Date(get(selectedDate)) <= new Date(sevent.to_date),
+            );
+            if (isUnavailable) {
+              const unavailableSevent = sevents_per_station.find(
+                (sevent) =>
+                  new Date(get(selectedDate)) >= new Date(sevent.from_date) &&
+                  new Date(get(selectedDate)) <= new Date(sevent.to_date),
+              );
+              return {
+                ...station,
+                status: unavailableSevent?.name ?? "unavailable",
+              };
+            } else {
+              return { ...station, status: "in_service" };
+            }
+          }
+        });
+      }
+      return stations;
+    } catch (e) {
+      errorHandler.handleError(e as AppError);
+      return [];
+    }
   }
   async function loadReservations(date: string) {
     let reservations: Reservation[] = [];
-   
-    try{
+
+    try {
       reservations = await apiService.Get(`/reservations/${date}`);
       return reservations;
-      }catch(e){
-        errorHandler.handleError(e as AppError);
-        return [];
-      }
-    
-  }     
-  const loadSevents=async()=>{
-    let sevents:Sevent[]=[];
-    try{
-      sevents=await apiService.Get(`/sevents`);
+    } catch (e) {
+      errorHandler.handleError(e as AppError);
+      return [];
+    }
+  }
+  const loadSevents = async () => {
+    let sevents: Sevent[] = [];
+    try {
+      sevents = await apiService.Get(`/sevents`);
       return sevents;
-      }catch(e:any){
-        if (e.message?.includes('Request throttled')) {
-            // Wait for the throttle delay and retry
-            await new Promise(resolve => setTimeout(resolve, 500));
-            return loadSevents();
-        }
-        errorHandler.handleError(e as AppError);
-        return []
+    } catch (e: any) {
+      if (e.message?.includes("Request throttled")) {
+        // Wait for the throttle delay and retry
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        return loadSevents();
       }
-    
-  }
+      errorHandler.handleError(e as AppError);
+      return [];
+    }
+  };
 
-  const init_data=async(date:string,loadingIndicator:number)=>{
-    
-    const stations=await loadStations();
-    console.log("stations:",stations)
-    const res=await loadReservations(date);
-    console.log("reservations:",res);
-    const sevents=await loadSevents();
-    console.log("sevents:",sevents)
-    return {stations,res,sevents}
-  }
-
+  const init_data = async (date: string, loadingIndicator: number) => {
+    const stations = await loadStations();
+    console.log("stations:", stations);
+    const res = await loadReservations(date);
+    console.log("reservations:", res);
+    const sevents = await loadSevents();
+    console.log("sevents:", sevents);
+    return { stations, res, sevents };
+  };
 
   let loadingIndicator = $state(0);
- 
-  const init_page=async()=>{
-      const settings=await apiService.Get("/general/settings");
-      setGlobal("tests",settings.tests);
-      setGlobal("project_engineers",settings.project_engineers);
-      setGlobal("testing_engineers",settings.testing_engineers);
-      setGlobal("loadSetting",settings.loadSetting);
-      setGlobal("station_orders",settings.station_orders);
-    await new Promise(resolve => setTimeout(resolve, 200));
-  }
-  
+
+  const init_page = async () => {
+    await dayPageInit();
+    await new Promise((resolve) => setTimeout(resolve, 200));
+  };
+
   // Add keyboard event listener for day navigation
   const handleKeydown = (event: KeyboardEvent) => {
     // 如果modal正在显示，且不是在输入框内
     if ($modalStore.isShow) {
       const target = event.target as HTMLElement;
-      const isInput = target.tagName === 'INPUT' || 
-                     target.tagName === 'TEXTAREA' || 
-                     target.isContentEditable;
-      
+      const isInput =
+        target.tagName === "INPUT" ||
+        target.tagName === "TEXTAREA" ||
+        target.isContentEditable;
+
       // 如果不是在输入框内，才阻止默认行为
-      if (!isInput && (event.key === "ArrowLeft" || event.key === "ArrowRight")) {
+      if (
+        !isInput &&
+        (event.key === "ArrowLeft" || event.key === "ArrowRight")
+      ) {
         event.preventDefault();
       }
       return;
     }
-    
+
     if (event.key === "ArrowLeft") {
       calendar.previous();
       loadReservations($selectedDate);
@@ -155,169 +163,171 @@
     window.addEventListener("keydown", handleKeydown);
     return () => window.removeEventListener("keydown", handleKeydown);
   });
-  async function logout(){
+  async function logout() {
     await apiService.logout();
     goto("/auth/login");
   }
 </script>
 
-{#snippet showDayBlock(timeslot:string,station:Station,reservations:Reservation[],sevents:Sevent[])}
-<td
-class="fixed-width"
-class:station-unavailable={station.status!=='in_service'}
-style="text-align:left;font-size:12px;"
->
-{#if station.status!=='in_service'}
-  <button
-    class="tooltip-container unavailable-cell"
-    onclick={() =>errorHandler.showInfo("工位不可用")}
+{#snippet showDayBlock(
+  timeslot: string,
+  station: Station,
+  reservations: Reservation[],
+  sevents: Sevent[],
+)}
+  <td
+    class="fixed-width"
+    class:station-unavailable={station.status !== "in_service"}
+    style="text-align:left;font-size:12px;"
   >
-    <span class={`${timeslot === 'T5' ? "tooltip-top" : "tooltip"}`}>工位不可用</span>
-    <svg
-      class="logo"
-      style="fill: #fbc400;opacity:0.8"
-      viewBox="0 0 1024 1024"
-      version="1.1"
-      xmlns="http://www.w3.org/2000/svg"
-      width="200"
-      height="200"
-      ><path
-        d="M821.344 458.656v106.688H202.656v-106.688h618.688zM1024 512c0 282.784-229.216 512-512 512S0 794.784 0 512 229.216 0 512 0s512 229.216 512 512z m-85.344 0c0-235.264-191.392-426.656-426.656-426.656S85.344 276.736 85.344 512 276.736 938.656 512 938.656 938.656 747.264 938.656 512z"
-      ></path></svg
-    >
-    <span style="font-size: 0.8rem;margin-top:0.5rem" class="first-letter-capital">{station.status.replaceAll("_"," ")}</span>
-  </button>
-{:else}
-  {#await Promise.resolve(reservations.filter((f) => f.time_slot === timeslot && f.station_id === station.id)[0])}
-    <div>Loading...</div>
-  {:then reservation}
-    {#if reservation}
+    {#if station.status !== "in_service"}
       <button
-      style="gap: 5px; display: flex; flex-direction: column; align-items: center; width: 100%;"
-        class="tooltip-container"
-        onclick={()=>{
-            showModal(ReservationForm, {
-            item:reservation,
-            isSimpleMode:true,
-            onNegative:()=>{
-              hideModal();
-            }
-          });
-        }}
+        class="tooltip-container unavailable-cell"
+        onclick={() => errorHandler.showInfo("工位不可用")}
       >
-        <span class={timeslot === 'T5' ? "tooltip-top" : "tooltip"}
-          >点击查看预约</span
-        >
-        <div class="engineer-info" style="display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.75rem;">
-          <div class="engineer-item" style="display: flex; align-items: center; gap: 0.25rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-            <span class="badge" style="background-color: #e2e8f0; color: #475569; padding: 0.125rem 0.25rem; border-radius: 0.25rem; font-size: 0.7rem; font-weight: 600; flex-shrink: 0;">PE</span>
-            <span class="name" style="color: #1e293b; overflow: hidden; text-overflow: ellipsis;">{reservation.project_engineer}</span>
-          </div>
-          <div class="engineer-item" style="display: flex; align-items: center; gap: 0.25rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-            <span class="badge" style="background-color: #e2e8f0; color: #475569; padding: 0.125rem 0.25rem; border-radius: 0.25rem; font-size: 0.7rem; font-weight: 600; flex-shrink: 0;">TE</span>
-            <span class="name" style="color: #1e293b; overflow: hidden; text-overflow: ellipsis;">{reservation.testing_engineer}</span>
-          </div>
-        </div>
-        {#if reservation.job_no||reservation.product_name||reservation.client_name}
-        <div class="divider"></div>
-        {#if reservation.job_no}
-        <div style="font-size: smaller; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;">
-          <!-- <span style="font-weight:bold;">Job No.:</span
-          > -->
-          {reservation.job_no}
-        </div>
-        {/if}
-        {#if reservation.product_name}
-          <div style="font-size: smaller; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;">
-            <!-- <span style="font-weight:bold;">Product:</span
-            > -->
-            {reservation.product_name}
-          </div>
-        {/if}
-        {#if reservation.client_name}
-          <div style="font-size: smaller; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;">
-            <!-- <span style="font-weight:bold;">Client:</span
-            > -->
-            {reservation.client_name}
-          </div>
-        {/if}
-        {/if}
-      </button>
-    {:else}
-      <button
-        class="tooltip-container coffee-btn"
-        aria-label="open_new"
-        onclick={()=>{
-          showModal(ReservationForm, {
-              item: {station_id:station.id,reservation_date:$selectedDate} as Reservation,
-            isSimpleMode:true,
-            onNegative:()=>{
-              hideModal();
-            }
-          });
-        }}
-      >
-        <span class={timeslot === 'T5' ? "tooltip-top" : "tooltip"}
-          >无预约</span
+        <span class={`${timeslot === "T5" ? "tooltip-top" : "tooltip"}`}
+          >工位不可用</span
         >
         <svg
-          class="logo spare"
+          class="logo"
+          style="fill: #fbc400;opacity:0.8"
           viewBox="0 0 1024 1024"
           version="1.1"
           xmlns="http://www.w3.org/2000/svg"
           width="200"
           height="200"
           ><path
-            d="M797.994667 448.725333v123.306667a243.626667 243.626667 0 0 1-243.626667 243.669333H371.626667A243.626667 243.626667 0 0 1 128 572.074667V358.826667c0-16.810667 13.653333-30.421333 30.464-30.421334h119.381333C292.096 319.146667 298.666667 305.408 298.666667 285.184c0-13.098667-6.058667-23.253333-25.344-44.928l-3.541334-4.010667c-23.125333-26.112-32.725333-42.538667-32.554666-67.114666 0.256-37.333333 15.658667-65.536 45.482666-81.322667a21.333333 21.333333 0 0 1 19.968 37.717333c-15.232 8.064-22.613333 21.589333-22.784 43.946667-0.085333 10.581333 5.376 19.925333 21.845334 38.485333l3.498666 3.968c25.984 29.226667 36.096 46.08 36.096 73.258667 0 16.128-2.986667 30.634667-8.874666 43.264h116.010666c14.250667-9.301333 20.864-23.04 20.864-43.264 0-13.098667-6.058667-23.253333-25.344-44.928l-3.541333-4.010667c-23.125333-26.112-32.725333-42.538667-32.554667-67.114666 0.256-37.333333 15.658667-65.536 45.482667-81.322667a21.333333 21.333333 0 1 1 19.968 37.717333c-15.232 8.064-22.613333 21.589333-22.784 43.946667-0.085333 10.581333 5.376 19.925333 21.845333 38.485333l3.498667 3.968c25.984 29.226667 36.096 46.08 36.096 73.258667 0 16.128-2.986667 30.634667-8.874667 43.264h93.696c16.853333 0 30.464 13.610667 30.464 30.421333v46.976A149.333333 149.333333 0 1 1 810.666667 704a21.333333 21.333333 0 1 1 0-42.666667 106.666667 106.666667 0 1 0-12.672-212.608zM213.333333 917.333333a21.333333 21.333333 0 1 1 0-42.666666h512a21.333333 21.333333 0 1 1 0 42.666666H213.333333z"
-        ></path></svg
-      >
-    </button>
+            d="M821.344 458.656v106.688H202.656v-106.688h618.688zM1024 512c0 282.784-229.216 512-512 512S0 794.784 0 512 229.216 0 512 0s512 229.216 512 512z m-85.344 0c0-235.264-191.392-426.656-426.656-426.656S85.344 276.736 85.344 512 276.736 938.656 512 938.656 938.656 747.264 938.656 512z"
+          ></path></svg
+        >
+        <span
+          style="font-size: 0.8rem;margin-top:0.5rem"
+          class="first-letter-capital"
+          >{station.status.replaceAll("_", " ")}</span
+        >
+      </button>
+    {:else}
+      {#await Promise.resolve(reservations.filter((f) => f.time_slot === timeslot && f.station_id === station.id)[0])}
+        <div>Loading...</div>
+      {:then reservation}
+        {#if reservation}
+          <button
+            style="gap: 5px; display: flex; flex-direction: column; align-items: center; width: 100%;"
+            class="tooltip-container"
+            onclick={() => handleReservationBlockClick(reservation, station, $selectedDate)}
+          >
+            <span class={timeslot === "T5" ? "tooltip-top" : "tooltip"}
+              >点击查看预约</span
+            >
+            <div
+              class="engineer-info"
+              style="display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.75rem;"
+            >
+              <div
+                class="engineer-item"
+                style="display: flex; align-items: center; gap: 0.25rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
+              >
+                <span
+                  class="badge"
+                  style="background-color: #e2e8f0; color: #475569; padding: 0.125rem 0.25rem; border-radius: 0.25rem; font-size: 0.7rem; font-weight: 600; flex-shrink: 0;"
+                  >PE</span
+                >
+                <span
+                  class="name"
+                  style="color: #1e293b; overflow: hidden; text-overflow: ellipsis;"
+                  >{reservation.project_engineer}</span
+                >
+              </div>
+              <div
+                class="engineer-item"
+                style="display: flex; align-items: center; gap: 0.25rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
+              >
+                <span
+                  class="badge"
+                  style="background-color: #e2e8f0; color: #475569; padding: 0.125rem 0.25rem; border-radius: 0.25rem; font-size: 0.7rem; font-weight: 600; flex-shrink: 0;"
+                  >TE</span
+                >
+                <span
+                  class="name"
+                  style="color: #1e293b; overflow: hidden; text-overflow: ellipsis;"
+                  >{reservation.testing_engineer}</span
+                >
+              </div>
+            </div>
+            {#if reservation.job_no || reservation.product_name || reservation.client_name}
+              <div class="divider"></div>
+              {#if reservation.job_no}
+                <div
+                  style="font-size: smaller; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;"
+                >
+                  <!-- <span style="font-weight:bold;">Job No.:</span
+          > -->
+                  {reservation.job_no}
+                </div>
+              {/if}
+              {#if reservation.product_name}
+                <div
+                  style="font-size: smaller; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;"
+                >
+                  <!-- <span style="font-weight:bold;">Product:</span
+            > -->
+                  {reservation.product_name}
+                </div>
+              {/if}
+              {#if reservation.client_name}
+                <div
+                  style="font-size: smaller; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;"
+                >
+                  <!-- <span style="font-weight:bold;">Client:</span
+            > -->
+                  {reservation.client_name}
+                </div>
+              {/if}
+            {/if}
+          </button>
+        {:else}
+          <button
+            class="tooltip-container coffee-btn"
+            aria-label="open_new"
+            onclick={() => handleReservationBlockClick(null, station, $selectedDate)}
+          >
+            <span class={timeslot === "T5" ? "tooltip-top" : "tooltip"}
+              >无预约</span
+            >
+            <svg
+              class="logo spare"
+              viewBox="0 0 1024 1024"
+              version="1.1"
+              xmlns="http://www.w3.org/2000/svg"
+              width="200"
+              height="200"
+              ><path
+                d="M797.994667 448.725333v123.306667a243.626667 243.626667 0 0 1-243.626667 243.669333H371.626667A243.626667 243.626667 0 0 1 128 572.074667V358.826667c0-16.810667 13.653333-30.421333 30.464-30.421334h119.381333C292.096 319.146667 298.666667 305.408 298.666667 285.184c0-13.098667-6.058667-23.253333-25.344-44.928l-3.541334-4.010667c-23.125333-26.112-32.725333-42.538667-32.554666-67.114666 0.256-37.333333 15.658667-65.536 45.482666-81.322667a21.333333 21.333333 0 0 1 19.968 37.717333c-15.232 8.064-22.613333 21.589333-22.784 43.946667-0.085333 10.581333 5.376 19.925333 21.845334 38.485333l3.498666 3.968c25.984 29.226667 36.096 46.08 36.096 73.258667 0 16.128-2.986667 30.634667-8.874666 43.264h116.010666c14.250667-9.301333 20.864-23.04 20.864-43.264 0-13.098667-6.058667-23.253333-25.344-44.928l-3.541333-4.010667c-23.125333-26.112-32.725333-42.538667-32.554667-67.114666 0.256-37.333333 15.658667-65.536 45.482667-81.322667a21.333333 21.333333 0 1 1 19.968 37.717333c-15.232 8.064-22.613333 21.589333-22.784 43.946667-0.085333 10.581333 5.376 19.925333 21.845333 38.485333l3.498667 3.968c25.984 29.226667 36.096 46.08 36.096 73.258667 0 16.128-2.986667 30.634667-8.874667 43.264h93.696c16.853333 0 30.464 13.610667 30.464 30.421333v46.976A149.333333 149.333333 0 1 1 810.666667 704a21.333333 21.333333 0 1 1 0-42.666667 106.666667 106.666667 0 1 0-12.672-212.608zM213.333333 917.333333a21.333333 21.333333 0 1 1 0-42.666666h512a21.333333 21.333333 0 1 1 0 42.666666H213.333333z"
+              ></path></svg
+            >
+          </button>
+        {/if}
+      {/await}
     {/if}
-  {/await}
-{/if}
-</td>
+  </td>
 {/snippet}
 
 <main class="container">
   {#await init_page()}
-  <div class="loading-container">
-    <div class="loading-spinner-wrapper">
-      <div class="loading-spinner"></div>
+    <div class="loading-container">
+      <div class="loading-spinner-wrapper">
+        <div class="loading-spinner"></div>
+      </div>
+      <span class="loading-text">加载中...</span>
     </div>
-    <span class="loading-text">加载中...</span>
-  </div>
-{:then _} 
-  <div class="fixed-header">
-    <button
-      aria-label="calendar_view"
-      class="tooltip-container"
-      onclick={() => goto("/")}
-    >
-      <span class="tooltip">返回月度视图</span>
-      <svg
-        class="logo"
-        style="fill: #fbc400;"
-        viewBox="0 0 1024 1024"
-        version="1.1"
-        xmlns="http://www.w3.org/2000/svg"
-        width="200"
-        height="200"
-        ><path
-          d="M109.714286 950.857143l164.571429 0 0-164.571429-164.571429 0 0 164.571429zM310.857143 950.857143l182.857143 0 0-164.571429-182.857143 0 0 164.571429zM109.714286 749.714286l164.571429 0 0-182.857143-164.571429 0 0 182.857143zM310.857143 749.714286l182.857143 0 0-182.857143-182.857143 0 0 182.857143zM109.714286 530.285714l164.571429 0 0-164.571429-164.571429 0 0 164.571429zM530.285714 950.857143l182.857143 0 0-164.571429-182.857143 0 0 164.571429zM310.857143 530.285714l182.857143 0 0-164.571429-182.857143 0 0 164.571429zM749.714286 950.857143l164.571429 0 0-164.571429-164.571429 0 0 164.571429zM530.285714 749.714286l182.857143 0 0-182.857143-182.857143 0 0 182.857143zM329.142857 256l0-164.571429q0-7.460571-5.412571-12.873143t-12.873143-5.412571l-36.571429 0q-7.460571 0-12.873143 5.412571t-5.412571 12.873143l0 164.571429q0 7.460571 5.412571 12.873143t12.873143 5.412571l36.571429 0q7.460571 0 12.873143-5.412571t5.412571-12.873143zM749.714286 749.714286l164.571429 0 0-182.857143-164.571429 0 0 182.857143zM530.285714 530.285714l182.857143 0 0-164.571429-182.857143 0 0 164.571429zM749.714286 530.285714l164.571429 0 0-164.571429-164.571429 0 0 164.571429zM768 256l0-164.571429q0-7.460571-5.412571-12.873143t-12.873143-5.412571l-36.571429 0q-7.460571 0-12.873143 5.412571t-5.412571 12.873143l0 164.571429q0 7.460571 5.412571 12.873143t12.873143 5.412571l36.571429 0q7.460571 0 12.873143-5.412571t5.412571-12.873143zM987.428571 219.428571l0 731.428571q0 29.696-21.723429 51.419429t-51.419429 21.723429l-804.571429 0q-29.696 0-51.419429-21.723429t-21.723429-51.419429l0-731.428571q0-29.696 21.723429-51.419429t51.419429-21.723429l73.142857 0 0-54.857143q0-37.741714 26.843429-64.585143t64.585143-26.843429l36.571429 0q37.741714 0 64.585143 26.843429t26.843429 64.585143l0 54.857143 219.428571 0 0-54.857143q0-37.741714 26.843429-64.585143t64.585143-26.843429l36.571429 0q37.741714 0 64.585143 26.843429t26.843429 64.585143l0 54.857143 73.142857 0q29.696 0 51.419429 21.723429t21.723429 51.419429z"
-        ></path></svg
-      >
-    </button>
-    <!-- <img class="brand" src="/intertek.png" alt="Intertek" /> -->
-    <div class="month-nav">
+  {:then _}
+    <div class="fixed-header">
       <button
+        aria-label="calendar_view"
         class="tooltip-container"
-        aria-label="previous_month"
-        onclick={() => {
-          calendar.previous();
-          loadReservations($selectedDate);
-        }}
+        onclick={() => goto("/")}
       >
-        <span class="tooltip">上一天</span>
+        <span class="tooltip">返回月度视图</span>
         <svg
           class="logo"
           style="fill: #fbc400;"
@@ -327,132 +337,197 @@ style="text-align:left;font-size:12px;"
           width="200"
           height="200"
           ><path
-            d="M629.291 840.832l60.331-60.331-268.501-268.501 268.501-268.501-60.331-60.331-328.832 328.832z"
+            d="M109.714286 950.857143l164.571429 0 0-164.571429-164.571429 0 0 164.571429zM310.857143 950.857143l182.857143 0 0-164.571429-182.857143 0 0 164.571429zM109.714286 749.714286l164.571429 0 0-182.857143-164.571429 0 0 182.857143zM310.857143 749.714286l182.857143 0 0-182.857143-182.857143 0 0 182.857143zM109.714286 530.285714l164.571429 0 0-164.571429-164.571429 0 0 164.571429zM530.285714 950.857143l182.857143 0 0-164.571429-182.857143 0 0 164.571429zM310.857143 530.285714l182.857143 0 0-164.571429-182.857143 0 0 164.571429zM749.714286 950.857143l164.571429 0 0-164.571429-164.571429 0 0 164.571429zM530.285714 749.714286l182.857143 0 0-182.857143-182.857143 0 0 182.857143zM329.142857 256l0-164.571429q0-7.460571-5.412571-12.873143t-12.873143-5.412571l-36.571429 0q-7.460571 0-12.873143 5.412571t-5.412571 12.873143l0 164.571429q0 7.460571 5.412571 12.873143t12.873143 5.412571l36.571429 0q7.460571 0 12.873143-5.412571t5.412571-12.873143zM749.714286 749.714286l164.571429 0 0-182.857143-164.571429 0 0 182.857143zM530.285714 530.285714l182.857143 0 0-164.571429-182.857143 0 0 164.571429zM749.714286 530.285714l164.571429 0 0-164.571429-164.571429 0 0 164.571429zM768 256l0-164.571429q0-7.460571-5.412571-12.873143t-12.873143-5.412571l-36.571429 0q-7.460571 0-12.873143 5.412571t-5.412571 12.873143l0 164.571429q0 7.460571 5.412571 12.873143t12.873143 5.412571l36.571429 0q7.460571 0 12.873143-5.412571t5.412571-12.873143zM987.428571 219.428571l0 731.428571q0 29.696-21.723429 51.419429t-51.419429 21.723429l-804.571429 0q-29.696 0-51.419429-21.723429t-21.723429-51.419429l0-731.428571q0-29.696 21.723429-51.419429t51.419429-21.723429l73.142857 0 0-54.857143q0-37.741714 26.843429-64.585143t64.585143-26.843429l36.571429 0q37.741714 0 64.585143 26.843429t26.843429 64.585143l0 54.857143 219.428571 0 0-54.857143q0-37.741714 26.843429-64.585143t64.585143-26.843429l36.571429 0q37.741714 0 64.585143 26.843429t26.843429 64.585143l0 54.857143 73.142857 0q29.696 0 51.419429 21.723429t21.723429 51.419429z"
           ></path></svg
         >
       </button>
-      <input
-        type="date"
-        bind:value={$selectedDate}
-        onchange={(e: any) => {
-          calendar.setDate(e.target?.value);
-          loadReservations($selectedDate);
-        }}
-        class="date-input"
-      />
-      <button
-        class="tooltip-container"
-        aria-label="next_month"
-        onclick={() => {
-          calendar.next();
-          loadReservations($selectedDate);
-        }}
-      >
-        <span class="tooltip">下一天</span>
-        <svg
-          class="logo"
-          style="fill: #fbc400;"
-          viewBox="0 0 1024 1024"
-          version="1.1"
-          xmlns="http://www.w3.org/2000/svg"
-          width="200"
-          height="200"
-          ><path
-            d="M689.621 512l-328.832-328.832-60.331 60.331 268.501 268.501-268.501 268.501 60.331 60.331z"
-          ></path></svg
+      <!-- <img class="brand" src="/intertek.png" alt="Intertek" /> -->
+      <div class="month-nav">
+        <button
+          class="tooltip-container"
+          aria-label="previous_month"
+          onclick={() => {
+            calendar.previous();
+            loadReservations($selectedDate);
+          }}
         >
-      </button>
-    </div>
-    <div class="dropdown-container tooltip-container">
-      {#if localStorage.getItem("accessToken")}
-        {@const user=getGlobal("user")}
-        <Avartar username={user?.username||""}/>
-        {:else}
-        <button class="dropdown-trigger" aria-label="menu">
-          <svg class="logo"
-          style="fill: #fbc400;"
-          viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" width="200" height="200"><path d="M341.333333 533.333333a128 128 0 0 1 128 128v149.333334a128 128 0 0 1-128 128H192a128 128 0 0 1-128-128v-149.333334a128 128 0 0 1 128-128h149.333333z m469.333334 0a128 128 0 0 1 128 128v149.333334a128 128 0 0 1-128 128h-149.333334a128 128 0 0 1-128-128v-149.333334a128 128 0 0 1 128-128h149.333334z m-469.333334 64H192a64 64 0 0 0-63.893333 60.245334L128 661.333333v149.333334a64 64 0 0 0 60.245333 63.893333L192 874.666667h149.333333a64 64 0 0 0 63.893334-60.245334L405.333333 810.666667v-149.333334a64 64 0 0 0-60.245333-63.893333L341.333333 597.333333z m469.333334 0h-149.333334a64 64 0 0 0-63.893333 60.245334L597.333333 661.333333v149.333334a64 64 0 0 0 60.245334 63.893333L661.333333 874.666667h149.333334a64 64 0 0 0 63.893333-60.245334L874.666667 810.666667v-149.333334a64 64 0 0 0-60.245334-63.893333L810.666667 597.333333zM341.333333 64a128 128 0 0 1 128 128v149.333333a128 128 0 0 1-128 128H192a128 128 0 0 1-128-128V192a128 128 0 0 1 128-128h149.333333z m469.333334 0a128 128 0 0 1 128 128v149.333333a128 128 0 0 1-128 128h-149.333334a128 128 0 0 1-128-128V192a128 128 0 0 1 128-128h149.333334zM341.333333 128H192a64 64 0 0 0-63.893333 60.245333L128 192v149.333333a64 64 0 0 0 60.245333 63.893334L192 405.333333h149.333333a64 64 0 0 0 63.893334-60.245333L405.333333 341.333333V192a64 64 0 0 0-60.245333-63.893333L341.333333 128z m469.333334 0h-149.333334a64 64 0 0 0-63.893333 60.245333L597.333333 192v149.333333a64 64 0 0 0 60.245334 63.893334L661.333333 405.333333h149.333334a64 64 0 0 0 63.893333-60.245333L874.666667 341.333333V192a64 64 0 0 0-60.245334-63.893333L810.666667 128z" fill="#fbc400"></path></svg>
+          <span class="tooltip">上一天</span>
+          <svg
+            class="logo"
+            style="fill: #fbc400;"
+            viewBox="0 0 1024 1024"
+            version="1.1"
+            xmlns="http://www.w3.org/2000/svg"
+            width="200"
+            height="200"
+            ><path
+              d="M629.291 840.832l60.331-60.331-268.501-268.501 268.501-268.501-60.331-60.331-328.832 328.832z"
+            ></path></svg
+          >
         </button>
+        <input
+          type="date"
+          bind:value={$selectedDate}
+          onchange={(e: any) => {
+            calendar.setDate(e.target?.value);
+            loadReservations($selectedDate);
+          }}
+          class="date-input"
+        />
+        <button
+          class="tooltip-container"
+          aria-label="next_month"
+          onclick={() => {
+            calendar.next();
+            loadReservations($selectedDate);
+          }}
+        >
+          <span class="tooltip">下一天</span>
+          <svg
+            class="logo"
+            style="fill: #fbc400;"
+            viewBox="0 0 1024 1024"
+            version="1.1"
+            xmlns="http://www.w3.org/2000/svg"
+            width="200"
+            height="200"
+            ><path
+              d="M689.621 512l-328.832-328.832-60.331 60.331 268.501 268.501-268.501 268.501 60.331 60.331z"
+            ></path></svg
+          >
+        </button>
+      </div>
+      <div class="dropdown-container tooltip-container">
+        {#if localStorage.getItem("accessToken")}
+          {@const user = getGlobal("user")}
+          <Avartar username={user?.username || ""} />
+        {:else}
+          <button class="dropdown-trigger" aria-label="menu">
+            <svg
+              class="logo"
+              style="fill: #fbc400;"
+              viewBox="0 0 1024 1024"
+              version="1.1"
+              xmlns="http://www.w3.org/2000/svg"
+              width="200"
+              height="200"
+              ><path
+                d="M341.333333 533.333333a128 128 0 0 1 128 128v149.333334a128 128 0 0 1-128 128H192a128 128 0 0 1-128-128v-149.333334a128 128 0 0 1 128-128h149.333333z m469.333334 0a128 128 0 0 1 128 128v149.333334a128 128 0 0 1-128 128h-149.333334a128 128 0 0 1-128-128v-149.333334a128 128 0 0 1 128-128h149.333334z m-469.333334 64H192a64 64 0 0 0-63.893333 60.245334L128 661.333333v149.333334a64 64 0 0 0 60.245333 63.893333L192 874.666667h149.333333a64 64 0 0 0 63.893334-60.245334L405.333333 810.666667v-149.333334a64 64 0 0 0-60.245333-63.893333L341.333333 597.333333z m469.333334 0h-149.333334a64 64 0 0 0-63.893333 60.245334L597.333333 661.333333v149.333334a64 64 0 0 0 60.245334 63.893333L661.333333 874.666667h149.333334a64 64 0 0 0 63.893333-60.245334L874.666667 810.666667v-149.333334a64 64 0 0 0-60.245334-63.893333L810.666667 597.333333zM341.333333 64a128 128 0 0 1 128 128v149.333333a128 128 0 0 1-128 128H192a128 128 0 0 1-128-128V192a128 128 0 0 1 128-128h149.333333z m469.333334 0a128 128 0 0 1 128 128v149.333333a128 128 0 0 1-128 128h-149.333334a128 128 0 0 1-128-128V192a128 128 0 0 1 128-128h149.333334zM341.333333 128H192a64 64 0 0 0-63.893333 60.245333L128 192v149.333333a64 64 0 0 0 60.245333 63.893334L192 405.333333h149.333333a64 64 0 0 0 63.893334-60.245333L405.333333 341.333333V192a64 64 0 0 0-60.245333-63.893333L341.333333 128z m469.333334 0h-149.333334a64 64 0 0 0-63.893333 60.245333L597.333333 192v149.333333a64 64 0 0 0 60.245334 63.893334L661.333333 405.333333h149.333334a64 64 0 0 0 63.893333-60.245333L874.666667 341.333333V192a64 64 0 0 0-60.245334-63.893333L810.666667 128z"
+                fill="#fbc400"
+              ></path></svg
+            >
+          </button>
         {/if}
-        
+
         <div class="dropdown-menu">
           {#if !getGlobal("user")}
             <button class="dropdown-item" onclick={() => goto("/auth/login")}>
-              <svg class="menu-icon" viewBox="0 0 24 24"><path d="M11 7L9.6 8.4l2.6 2.6H2v2h10.2l-2.6 2.6L11 17l5-5l-5-5zm9 12h-8v2h8c1.1 0 2-0.9 2-2V5c0-1.1-0.9-2-2-2h-8v2h8v14z"/></svg>
+              <svg class="menu-icon" viewBox="0 0 24 24"
+                ><path
+                  d="M11 7L9.6 8.4l2.6 2.6H2v2h10.2l-2.6 2.6L11 17l5-5l-5-5zm9 12h-8v2h8c1.1 0 2-0.9 2-2V5c0-1.1-0.9-2-2-2h-8v2h8v14z"
+                /></svg
+              >
               登录
             </button>
-
           {:else}
-         
-          <button class="dropdown-item" onclick={() => goto("/settings/reservations")}>
-            <svg class="menu-icon" viewBox="0 0 24 24"><path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.07-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.74,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.07,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.44-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.47-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/></svg>
-            设置
-          </button>
-            <button class="dropdown-item" onclick={async() =>await logout()}> 
-              <svg class="menu-icon" viewBox="0 0 24 24"><path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/></svg>
+            <button
+              class="dropdown-item"
+              onclick={() => goto("/settings/reservations")}
+            >
+              <svg class="menu-icon" viewBox="0 0 24 24"
+                ><path
+                  d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.07-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.74,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.07,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.44-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.47-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"
+                /></svg
+              >
+              设置
+            </button>
+            <button class="dropdown-item" onclick={async () => await logout()}>
+              <svg class="menu-icon" viewBox="0 0 24 24"
+                ><path
+                  d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"
+                /></svg
+              >
               退出
             </button>
-            {/if}
-          <button class="dropdown-item" onclick={() => showModal(About, { onNegative: () => hideModal() })}>
-            <svg class="menu-icon" viewBox="0 0 24 24"><path d="M11 7h2v2h-2zm0 4h2v6h-2zm1-9C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/></svg>
+          {/if}
+          <button
+            class="dropdown-item"
+            onclick={() => showModal(About, { onNegative: () => hideModal() })}
+          >
+            <svg class="menu-icon" viewBox="0 0 24 24"
+              ><path
+                d="M11 7h2v2h-2zm0 4h2v6h-2zm1-9C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"
+              /></svg
+            >
             关于
           </button>
         </div>
-    </div>
-  </div>
-
-  <div class="table-container">
-    <div class="table-wrapper">
-      {#await init_data($selectedDate,loadingIndicator)}
-      <div class="loading-container">
-        <div class="loading-spinner-wrapper">
-          <div class="loading-spinner"></div>
-        </div>
-        <span class="loading-text">加载中...</span>
       </div>
-      {:then obj}
-        <table>
-          <thead>
-            <tr>
-              <th class="sticky-column">时间</th>
-              {#each obj.stations as station}
-                <th
-                  class="fixed-width tooltip-container"
-                  class:station-unavailable={station.status !== "in_service"}
-                >
-                  <span class="tooltip">点击查看工位详情</span>
-                  <a title={station.name} href={`/station?stationId=${station.id}&date=${$selectedDate}`} class="link">
-                    {station.short_name}
-                  </a>
-                </th>
-              {/each}
-            </tr>
-          </thead>
-          <tbody>
-            {#each ["9:30-12:00", "13:00-15:00", "15:00-17:30", "18:00-20:30", "20:30-23:59"] as timeSlot, idx}
+    </div>
+
+    <div class="table-container">
+      <div class="table-wrapper">
+        {#await init_data($selectedDate, loadingIndicator)}
+          <div class="loading-container">
+            <div class="loading-spinner-wrapper">
+              <div class="loading-spinner"></div>
+            </div>
+            <span class="loading-text">加载中...</span>
+          </div>
+        {:then obj}
+          <table>
+            <thead>
               <tr>
-                <td class="sticky-column">{timeSlot}</td>
+                <th class="sticky-column">时间</th>
                 {#each obj.stations as station}
-                  {@render showDayBlock(`T${idx + 1}`,station,obj.res,obj.sevents)}
+                  <th
+                    class="fixed-width tooltip-container"
+                    class:station-unavailable={station.status !== "in_service"}
+                  >
+                    <span class="tooltip">点击查看工位详情</span>
+                    <a
+                      title={station.name}
+                      href={`/station?stationId=${station.id}&date=${$selectedDate}`}
+                      class="link"
+                    >
+                      {station.short_name}
+                    </a>
+                  </th>
                 {/each}
               </tr>
-            {/each}
-          </tbody>
-        </table>
-      {/await}
+            </thead>
+            <tbody>
+              {#each ["9:30-12:00", "13:00-15:00", "15:00-17:30", "18:00-20:30", "20:30-23:59"] as timeSlot, idx}
+                <tr>
+                  <td class="sticky-column">{timeSlot}</td>
+                  {#each obj.stations as station}
+                    {@render showDayBlock(
+                      `T${idx + 1}`,
+                      station,
+                      obj.res,
+                      obj.sevents,
+                    )}
+                  {/each}
+                </tr>
+              {/each}
+            </tbody>
+          </table>
+        {/await}
+      </div>
     </div>
-  </div>
   {:catch error}
-  <div class="error-container">
-    <div class="error-icon">❌</div>
-    <div class="error-content">
-      <h3 class="error-title">抱歉，出现了问题</h3>
-      <p class="error-message">{error.message+" "+error.details.originalError.toString()}</p>
+    <div class="error-container">
+      <div class="error-icon">❌</div>
+      <div class="error-content">
+        <h3 class="error-title">抱歉，出现了问题</h3>
+        <p class="error-message">
+          {error.message + " " + error.details.originalError.toString()}
+        </p>
+      </div>
+      <button class="retry-button" onclick={() => window.location.reload()}>
+        重新加载
+      </button>
     </div>
-    <button class="retry-button" onclick={() => window.location.reload()}>
-      重新加载
-    </button>
-  </div>
   {/await}
 </main>
 
@@ -626,9 +701,9 @@ style="text-align:left;font-size:12px;"
   .date-input::-webkit-calendar-picker-indicator {
     filter: invert(70%) sepia(70%) saturate(1000%) hue-rotate(360deg);
     cursor: pointer;
-    width: 1.5rem;  
-    height: 1.5rem; 
-    padding: 0px; 
+    width: 1.5rem;
+    height: 1.5rem;
+    padding: 0px;
   }
 
   .table-container {
@@ -805,13 +880,22 @@ style="text-align:left;font-size:12px;"
   }
 
   @keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
+    0% {
+      transform: rotate(0deg);
+    }
+    100% {
+      transform: rotate(360deg);
+    }
   }
 
   @keyframes pulse {
-    0%, 100% { opacity: 0.6; }
-    50% { opacity: 1; }
+    0%,
+    100% {
+      opacity: 0.6;
+    }
+    50% {
+      opacity: 1;
+    }
   }
   .error-container {
     display: flex;
@@ -860,70 +944,70 @@ style="text-align:left;font-size:12px;"
     background-color: #1976d2;
   }
   .dropdown-container {
-  position: relative;
-}
+    position: relative;
+  }
 
-.dropdown-trigger {
-  background: none;
-  border: none;
-  padding: 8px;
-  cursor: pointer;
-  border-radius: 8px;
-  transition: all 0.3s ease;
-}
+  .dropdown-trigger {
+    background: none;
+    border: none;
+    padding: 8px;
+    cursor: pointer;
+    border-radius: 8px;
+    transition: all 0.3s ease;
+  }
 
-.dropdown-trigger:hover {
-  background-color: rgba(251, 196, 0, 0.1);
-  transform: translateY(-2px);
-}
+  .dropdown-trigger:hover {
+    background-color: rgba(251, 196, 0, 0.1);
+    transform: translateY(-2px);
+  }
 
-.dropdown-menu {
-  position: absolute;
-  top: 100%;
-  right: 0;
-  background: white;
-  border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  padding: 8px;
-  min-width: 8rem;
-  opacity: 0;
-  visibility: hidden;
-  transform: translateY(10px);
-  transition: all 0.3s ease;
-}
+  .dropdown-menu {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    padding: 8px;
+    min-width: 8rem;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(10px);
+    transition: all 0.3s ease;
+  }
 
-.dropdown-container:hover .dropdown-menu {
-  opacity: 1;
-  visibility: visible;
-  transform: translateY(0);
-}
+  .dropdown-container:hover .dropdown-menu {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+  }
 
-.dropdown-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  padding: 8px 16px;
-  border: none;
-  background: none;
-  color: #333;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  border-radius: 4px;
-  text-align: left;
-}
+  .dropdown-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 8px 16px;
+    border: none;
+    background: none;
+    color: #333;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border-radius: 4px;
+    text-align: left;
+  }
 
-.dropdown-item:hover {
-  background-color: rgba(251, 196, 0, 0.1);
-}
+  .dropdown-item:hover {
+    background-color: rgba(251, 196, 0, 0.1);
+  }
 
-.menu-icon {
-  width: 20px;
-  height: 20px;
-  fill: #666;
-}
+  .menu-icon {
+    width: 20px;
+    height: 20px;
+    fill: #666;
+  }
 
-.dropdown-item:hover .menu-icon {
-  fill: #fbc400;
-}
+  .dropdown-item:hover .menu-icon {
+    fill: #fbc400;
+  }
 </style>

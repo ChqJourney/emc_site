@@ -29,7 +29,10 @@ public class User
     [StringLength(60)] // BCrypt哈希固定长度60
     public string PasswordHash { get; set; } = string.Empty;
     [StringLength(88)] // JWT Refresh Token标准长度
+    // ignore refresh token
+    [JsonIgnore]
     public string? RefreshToken { get; set; }
+    [JsonIgnore]
     public long RefreshTokenExpiryTime { get; set; }
     // 新增安全字段
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;

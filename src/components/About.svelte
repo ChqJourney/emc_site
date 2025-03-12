@@ -1,11 +1,10 @@
 <script lang="ts">
   import { modalStore } from './modalStore';
-  let { onNegative } = $modalStore.props;
+
   
 </script>
 
 <div class="about-container">
-  <button class="close-button" onclick={onNegative}>关闭</button>
   <h3>关于 EMC 预约系统</h3>
   
   <div class="content">
@@ -65,9 +64,9 @@
     overflow: hidden;
     font-family: Arial, sans-serif;
     font-size: 14px;
-    max-width: 500px;
     margin: 0 auto;
     position: relative;
+    width: auto;
   }
 
   h3 {

@@ -5,7 +5,7 @@ using Microsoft.Data.Sqlite;
 
 public class UserRepository : BaseRepository, IUserRepository
 {
-    public UserRepository(IConfiguration config) : base(config) { }
+    public UserRepository(IConfiguration config) : base(config,"User") { }
     public async Task<User?> GetByUserNameAsync(string userName)
     {
         using var conn = await CreateConnection();
@@ -72,6 +72,11 @@ public class UserRepository : BaseRepository, IUserRepository
         await conn.ExecuteAsync(
             "UPDATE Users SET IsActive = 1 WHERE Id = @userId",
             new { userId });
+    }
+    public async Task RemoveUserAsync(int userId)
+    {
+        using var conn = await CreateConnection();
+        await conn.ExecuteAsync("DELETE Users where id=@userId",new {userId});
     }
 
 }

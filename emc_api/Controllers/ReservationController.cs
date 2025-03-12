@@ -44,10 +44,45 @@ namespace emc_api.Controllers
         }
         [Authorize(Roles = "Admin,Engineer")]
         [HttpGet]
-        public async Task<IActionResult> GetAll([FromQuery] string timeRange, [FromQuery] string? projectEngineer, [FromQuery] string? createdBy)
+        public async Task<IActionResult> GetAll([FromQuery] string timeRange, [FromQuery] string? projectEngineer, [FromQuery] string? createdBy,
+            [FromQuery] int? pageNumber = null, [FromQuery] int? pageSize = null)
         {
-            var result = await _repository.GetAllReservationsAsync(timeRange, projectEngineer, createdBy);
-            return Ok(result);
+            try
+            {
+                // 验证时间范围参数是否有效
+                if (string.IsNullOrWhiteSpace(timeRange))
+                {
+                    return BadRequest("timeRange参数是必需的");
+                }
+                
+                // 如果提供了分页参数，使用分页方法
+                if (pageNumber.HasValue && pageSize.HasValue)
+                {
+                    // 验证分页参数
+                    if (pageNumber.Value < 1)
+                    {
+                        return BadRequest("pageNumber必须大于0");
+                    }
+                    
+                    if (pageSize.Value < 1)
+                    {
+                        return BadRequest("pageSize必须大于0");
+                    }
+                    
+                    var paginatedResult = await _repository.GetPaginatedReservationsAsync(
+                        timeRange, projectEngineer, createdBy, pageNumber.Value, pageSize.Value);
+                    return Ok(paginatedResult);
+                }
+                
+                // 否则返回所有数据
+                var result = await _repository.GetAllReservationsAsync(timeRange, projectEngineer, createdBy);
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                // 记录异常
+                return StatusCode(500, $"获取预约列表时发生错误: {ex.Message}");
+            }
         }
 
         [Authorize(Roles = "Admin,Engineer")]

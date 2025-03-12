@@ -10,7 +10,7 @@ namespace emc_api.Repositories
     {
         private readonly ILoggerService _logger;
 
-        public BizRepository(IConfiguration config, ILoggerService logger) : base(config)
+        public BizRepository(IConfiguration config, ILoggerService logger) : base(config,"Biz")
         {
             _logger = logger;
         }
@@ -102,7 +102,7 @@ namespace emc_api.Repositories
                 throw;
             }
         }
-        public async Task<IEnumerable<Reservation>> GetAllReservationsAsync(string timeRange, string projectEngineer = null, string createdBy = null)
+        public async Task<IEnumerable<Reservation>> GetAllReservationsAsync(string timeRange, string? projectEngineer = null, string? createdBy = null)
         {
             try
             {
@@ -473,6 +473,34 @@ WHERE NOT EXISTS (
             using var _connection = await CreateConnection();
             var result = await _connection.QueryAsync<Sevent>(sql, new { Id = id });
             return result ?? Enumerable.Empty<Sevent>();
+        }
+
+        public async Task<PaginatedResult<Reservation>> GetPaginatedReservationsAsync(string timeRange, string? projectEngineer = null, string? createdBy = null, int pageNumber = 1, int pageSize = 10)
+        {
+            try
+            {
+                // 验证分页参数
+                if (pageNumber < 1)
+                {
+                    pageNumber = 1;
+                }
+
+                if (pageSize < 1)
+                {
+                    pageSize = 10;
+                }
+
+                // 获取所有记录
+                var allReservations = await GetAllReservationsAsync(timeRange, projectEngineer, createdBy);
+                
+                // 创建分页结果
+                return PaginatedResult<Reservation>.Create(allReservations, pageNumber, pageSize);
+            }
+            catch (Exception ex)
+            {
+                await _logger.LogErrorAsync("Error getting paginated reservations", ex);
+                throw;
+            }
         }
 
     }

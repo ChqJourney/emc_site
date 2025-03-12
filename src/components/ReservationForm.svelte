@@ -17,6 +17,7 @@
     import SingleSelect from "./SingleSelect.svelte";
     import { apiService } from "../biz/apiService";
     import { onMount } from "svelte";
+    import { tick } from "svelte";
    let {item,isSimpleMode,submitHandler,onNegative}:{item:Reservation,isSimpleMode:boolean,submitHandler:(reservation:Reservation,isCreate:boolean)=>Promise<void>,onNegative:()=>void}= $props();
     // $inspect(reservation);
     let isCreate=item===undefined||item.id===undefined||item.id===0
@@ -25,6 +26,7 @@
     let stations: Station[] = $state([]);
     let isSubmitting = $state(false);
     let isLoading = $state(true);
+    let isLoadingStationStatus = $state(false);
     let availableStations = $derived(
         stations.filter((station) => station.status === "in_service" || station.status === "maintenance")
     );
@@ -49,8 +51,20 @@
         created_on: new Date(),
         updated_on: new Date(),
     };
-    let config = $state({});
+    // 定义 config 的类型
+    type ConfigType = {
+        tests: Array<any>;
+        project_engineers: Array<any>;
+        test_engineers: Array<any>;
+    };
+    
+    let config = $state<ConfigType>({
+        tests: [],
+        project_engineers: [],
+        test_engineers: []
+    });
     let currentReservation = $state(initReservation ?? initReservationDTO);
+    $inspect(currentReservation)
     let modalExtraInfoShow = $state(false);
     async function loadStations() {
         try {
@@ -117,48 +131,103 @@
         T4: "18:00-20:30",
         T5: "20:30-23:59",
     };
-    let timeSlotsOptions = [
+    let timeSlotsOptions = $state([
         { name: "9:30-12:00", value: "T1", isOccupied: false },
         { name: "13:00-15:00", value: "T2", isOccupied: false },
         { name: "15:00-17:30", value: "T3", isOccupied: false },
         { name: "18:00-20:30", value: "T4", isOccupied: false },
         { name: "20:30-23:59", value: "T5", isOccupied: false },
-    ];
-    const init = async () => {
-        isLoading = true;
-        const init_tests = getGlobal("tests")||[];
-        const user = getGlobal("user");
-        currentReservation = {
-            ...currentReservation,
-            reservate_by: user?.user,
-        };
-        const project_engineers = getGlobal("project_engineers");
-        const test_engineers = getGlobal("testing_engineers");
-        const tests=await getTestFrequency(init_tests,currentReservation.station_id);
-        stations = await loadStations()||[];
-        config = { tests, project_engineers, test_engineers };
-        console.log("status")
-        const stationStatus = await apiService.Get(`/reservations/station_status/?id=${currentReservation.station_id}&date=${currentReservation.reservation_date}`);
-        console.log(stationStatus);
-        const newTimeSlotsOptions = timeSlotsOptions.map((option: { name: string; value: string; isOccupied: boolean }) => {
-            const isOccupied = stationStatus.some((status: { timeSlot: string; isOccupied: boolean }) => status.timeSlot.includes(option.value));
-            return { ...option, isOccupied };
-        });
-        timeSlotsOptions = newTimeSlotsOptions;
-        isLoading = false;
-
-    };
-   
-   onMount(()=>{
-    init();
-   })
+    ]);
+    
+    // 预加载基础数据函数
+    async function loadBasicData() {
+        try {
+            // 使用 setGlobal 而不是直接修改对象属性
+            const init_tests = getGlobal("tests") || [];
+            const user = getGlobal("user");
+            console.log(user);
+            
+            // 使用完整对象替换而不是直接修改属性
+            currentReservation = {
+                ...currentReservation,
+                reservate_by: user?.username ?? "unknown"
+            };
+            
+            const project_engineers = getGlobal("project_engineers") || [];
+            const test_engineers = getGlobal("testing_engineers") || [];
+            
+            // 并行加载站点数据和测试频率数据
+            const [stationsData, testsData] = await Promise.all([
+                loadStations(),
+                getTestFrequency(init_tests, currentReservation.station_id)
+            ]);
+            
+            stations = stationsData || [];
+            
+            // 完整替换对象
+            config = { 
+                tests: testsData, 
+                project_engineers, 
+                test_engineers 
+            };
+            
+            isLoading = false;
+            await tick(); // 确保UI更新
+            
+            // 加载完基础数据后，再加载时间槽状态
+            await loadStationStatus();
+        } catch (error) {
+            console.error("初始化错误:", error);
+            errorHandler.handleError(error as AppError);
+            isLoading = false;
+        }
+    }
+    
+    // 加载站点状态数据
+    async function loadStationStatus() {
+        try {
+            isLoadingStationStatus = true;
+            console.log("加载站点状态...");
+            const stationStatus = await apiService.Get(`/reservations/station_status/?id=${currentReservation.station_id}&date=${currentReservation.reservation_date}`);
+            console.log(stationStatus);
+            
+            // 创建新数组并完整替换
+            const newTimeSlotsOptions = timeSlotsOptions.map((option) => {
+                const isOccupied = stationStatus.some((status:any) => status.timeSlot.includes(option.value));
+                return { ...option, isOccupied };
+            });
+            
+            console.log(newTimeSlotsOptions);
+            timeSlotsOptions = [...newTimeSlotsOptions];
+        } catch (error) {
+            console.error("加载站点状态错误:", error);
+            errorHandler.handleError(error as AppError);
+        } finally {
+            isLoadingStationStatus = false;
+        }
+    }
+    
+    // 当日期或站点改变时重新加载时间槽状态
+    $effect(() => {
+        if (!isLoading && currentReservation.station_id && currentReservation.reservation_date) {
+            loadStationStatus();
+        }
+    });
+    
+    // 使用onMount钩子触发数据加载
+    onMount(() => {
+        loadBasicData();
+    });
 </script>   
-
+    
     <div class="modal-content">
+       {#if isLoading}
+         <div class="loading-container">
+           <p>加载中...</p>
+           <div class="loading-spinner"></div>
+         </div>
+       {:else}
         <h2>{isCreate?"创建预约":"修改预约"}</h2>
-        {#if isLoading}
-            <p>加载中...</p>
-        {:else}
             <form onsubmit={handleSubmit}>
                 <!-- 第一行：工位 -->
                 <div class="form-row">
@@ -203,6 +272,9 @@
                     </div>
                     <div class="form-group">
                         <label for="time_slot">时间段*</label>
+                        {#if isLoadingStationStatus}
+                            <div class="mini-loader">加载时间槽...</div>
+                        {:else}
                         <MultiSelect
                             isCreated={isCreate}
                             placeholder="请选择时间段"
@@ -227,6 +299,7 @@
                                 };
                             }}
                         />
+                        {/if}
                     </div>
                 </div>
 
@@ -269,7 +342,7 @@
                     <div class="form-group">
                         <label for="project_engineer">项目工程师*</label>
                         <SingleSelect
-                        options={config.project_engineers||[]}
+                        options={config.project_engineers || []}
                         placeholder="请选择项目工程师"
                         value={currentReservation.project_engineer}
                         onSelect={(value: string) => {
@@ -283,7 +356,7 @@
                     <div class="form-group">
                         <label for="testing_engineer">测试工程师*</label>
                         <SingleSelect
-                        options={config.test_engineers||[]}
+                        options={config.test_engineers || []}
                         placeholder="请选择测试工程师"
                         value={currentReservation.testing_engineer}
                         onSelect={(value: string) => {
@@ -380,7 +453,7 @@
                             <input
                             disabled
                                 type="text"
-                                value={currentReservation.created_On||""}
+                                value={currentReservation.created_on || ""}
                             />
                         </div>
                         <div class="form-group full-width">
@@ -388,7 +461,7 @@
                             <input
                             disabled
                                 type="text"
-                                value={currentReservation.updated_On?.substring(0,19)||""}
+                                value={typeof currentReservation.updated_on === 'object' ? currentReservation.updated_on.toISOString().substring(0,19) : ""}
                             />
                         </div>
                     </div>
@@ -415,9 +488,10 @@
                     </div>
                 </div>
             </form>
-        {/if}
-    </div>
+       
 
+        {/if}
+</div>
 <style>
     /* .modal-overlay {
         position: fixed;
@@ -522,5 +596,36 @@
 
     .button-group .submit:hover {
         background: #357abd;
+    }
+
+    .loading-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        height: 200px;
+    }
+    
+    .loading-spinner {
+        width: 40px;
+        height: 40px;
+        border: 3px solid #f3f3f3;
+        border-top: 3px solid #4a90e2;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        margin-top: 10px;
+    }
+    
+    .mini-loader {
+        font-size: 0.8rem;
+        color: #666;
+        padding: 8px;
+        display: flex;
+        align-items: center;
+    }
+    
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
     }
 </style>

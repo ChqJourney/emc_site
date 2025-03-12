@@ -8,39 +8,45 @@ namespace emc_api.Data
         Task InitializeAsync();
     }
 
-    public class DatabaseInitializer : IDatabaseInitializer,IDisposable, IAsyncDisposable
+    public class DatabaseInitializer : IDatabaseInitializer, IDisposable, IAsyncDisposable
     {
         private readonly SqliteConnection _connection;
-
-        public DatabaseInitializer(SqliteConnection conn)
+        private readonly string _dbName;
+        public DatabaseInitializer(SqliteConnection conn, string dbName)
         {
             _connection = conn;
+            _dbName = dbName;
         }
 
         public async Task InitializeAsync()
         {
             await _connection.OpenAsync();
-            
-            var sql = @"
+            string sql = "";
+            switch (_dbName)
+            {
+                case "User":
+                    sql = @"
                 CREATE TABLE IF NOT EXISTS Users (
-                    Id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    UserName TEXT NOT NULL,
-                    MachineName TEXT NOT NULL,
-                    FullName TEXT NOT NULL,
-                    Team TEXT NOT NULL,
-                    Role TEXT NOT NULL,
-                    LoginAt TEXT NOT NULL,
-                    UNIQUE(UserName, MachineName)
-                );
-
-                CREATE TABLE IF NOT EXISTS UserActivities (
-                    Id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    UserId INTEGER NOT NULL,
-                    ApiUsed TEXT NOT NULL,
-                    Timestamp TEXT NOT NULL,
-                    FOREIGN KEY(UserId) REFERENCES Users(Id)
-                );
-
+    Id INTEGER PRIMARY KEY AUTOINCREMENT,
+    UserName VARCHAR(50) NOT NULL UNIQUE,
+    FullName VARCHAR(100),
+    MachineName VARCHAR(50),
+    Team VARCHAR(50),
+    Role VARCHAR(20) NOT NULL CHECK(Role IN ('Engineer', 'Admin', 'Manager')) DEFAULT 'User',
+    PasswordHash CHAR(60) NOT NULL, -- BCrypt哈希固定长度60
+    RefreshToken CHAR(88), -- JWT Refresh Token标准长度
+    RefreshTokenExpiryTime number NOT NULL DEFAULT 0, -- JWT Refresh Token过期时间
+    CreatedAt DATETIME NOT NULL DEFAULT (datetime('now')),
+    LastLoginAt DATETIME,
+    IsActive BOOLEAN NOT NULL DEFAULT 1
+);
+-- 创建索引
+CREATE INDEX IF NOT EXISTS IX_Users_UserName ON Users (UserName);
+CREATE INDEX IF NOT EXISTS IX_Users_RefreshToken ON Users (RefreshToken);
+                ";
+                    break;
+                case "Biz":
+                    sql = @"
                 CREATE TABLE IF NOT EXISTS reservations (
 	id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
     reservation_date varchar(24) NOT NULL,
@@ -92,6 +98,9 @@ updated_By TEXT
 );
 
     ";
+                    break;
+            }
+
 
             await _connection.ExecuteAsync(sql);
         }

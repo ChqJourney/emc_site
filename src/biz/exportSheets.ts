@@ -1,8 +1,8 @@
 import ExcelJS from 'exceljs';
-import type { Station, Reservation, Visiting } from './types';
+import type { Station, Reservation, Visiting } from '../biz/types';
 import { save } from '@tauri-apps/plugin-dialog';
 import { writeFile, BaseDirectory } from '@tauri-apps/plugin-fs';
-import { AppError, ErrorCode } from './errors';
+import { AppError, ErrorCode } from '../biz/errors';
 import { invoke } from '@tauri-apps/api/core';
 
 // 导出工位数据

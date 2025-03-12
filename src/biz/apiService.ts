@@ -405,11 +405,16 @@ class ApiService {
     public async Post<T = any>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> {
         return await this.request<T>({ method: 'post', url, data, ...config });
     }
+    public async Put<T = any>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> {
+        return await this.request<T>({ method: 'put', url, data, ...config });
+    }
 
     public async Get<T = any>(url: string, config?: AxiosRequestConfig): Promise<T> {
         return await this.request<T>({ method: 'get', url, ...config });
     }
-
+    public async Delete<T = any>(url: string, config?: AxiosRequestConfig): Promise<T> {
+        return await this.request<T>({ method: 'delete', url, ...config });
+    }
     // 登录方法
     public async login(payload: LoginPayload): Promise<void> {
         try {

@@ -5,11 +5,11 @@
     import UserForm from "../../../components/UserForm.svelte";
 
     let users: any = $state([]);
-    let currentPage = 1;
-    let pageSize = 10;
-    let totalPages = 0;
-    let loading = false;
-    let isDeleting = false;
+    let currentPage = $state(1);
+    let pageSize = $state(10);  
+    let totalPages = $state(0);
+    let loading = $state(false);
+    let isDeleting = $state(false);
 
     // 新用户表单数据
     let newUser = {
@@ -66,7 +66,7 @@
         if (confirm(`确定要删除用户 ${username} 吗？此操作不可恢复！`)) {
             try {
                 isDeleting = true;
-                await apiService.delete(`/auth/${userId}`);
+                await apiService.Delete(`/auth/remove/${userId}`);
                 await loadUsers();
                 alert("用户已删除");
             } catch (error) {
@@ -106,7 +106,7 @@
         <button
             class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors"
             onclick={() =>
-                showModal(UserForm as unknown as Component<{}, {}, "">, { userInfo: undefined, callback: async()=>await loadUsers() })}
+                showModal(UserForm as unknown as Component<{}, {}, "">, { userInfo: undefined, callback: loadUsers })}
         >
             添加用户
         </button>
@@ -133,6 +133,10 @@
                         >
                         <th
                             class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                            >机器名</th
+                        >
+                        <th
+                            class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
                             >状态</th
                         >
                         <th
@@ -141,7 +145,7 @@
                         >
                     </tr>
                 </thead>
-                <tbody class="bg-white divide-y divide-gray-200">
+                <tbody class="bg-white divide-y font-normal text-sm text-gray-500 divide-gray-200">
                     {#each paginatedUsers as user}
                         <tr>
                             <td class="px-6 py-4 whitespace-nowrap"
@@ -150,8 +154,11 @@
                             <td class="px-6 py-4 whitespace-nowrap"
                                 >{user.role}</td
                             >
+                            <td class="px-6 py-4 whitespace-nowrap"
+                                >{user.machinename}</td
+                            >
                             <td class="px-6 py-4 whitespace-nowrap">
-                                {#if user.isLocked}
+                                {#if !user.isActive}
                                     <span
                                         class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800"
                                     >
@@ -170,7 +177,7 @@
                             >
                                 <button
                                     class="text-blue-600 hover:text-blue-800 mr-3"
-                                    onclick={() => resetPassword(user.userName)}
+                                    onclick={() => resetPassword(user.username)}
                                     disabled={isDeleting}
                                 >
                                     重置密码
@@ -180,17 +187,17 @@
                                     onclick={() =>
                                         toggleUserLock(
                                             user.id,
-                                            user.userName,
-                                            user.isLocked,
+                                            user.username,
+                                            user.isActive,
                                         )}
                                     disabled={isDeleting}
                                 >
-                                    {user.isLocked ? "解锁" : "锁定"}
+                                    {user.isActive ?"锁定": "解锁"  }
                                 </button>
                                 <button
                                     class="text-red-600 hover:text-red-800"
                                     onclick={() =>
-                                        deleteUser(user.id, user.userName)}
+                                        deleteUser(user.id, user.username)}
                                     disabled={isDeleting}
                                 >
                                     删除

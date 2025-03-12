@@ -1,4 +1,4 @@
-import { modalStore } from "../components/modalStore";
+import { hideModal, modalStore, showModal } from "../components/modalStore";
 import type { AppError } from "../biz/errors";
 import type { Authorization, Reservation, ReservationDTO, Station, User, Visiting } from "../types/interfaces";
 import { errorHandler } from "./errorHandler";
@@ -9,7 +9,9 @@ import { exists, readTextFile } from "@tauri-apps/plugin-fs";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { invoke } from "@tauri-apps/api/core";
 import { apiService } from "./apiService";
-// import { AuthUtils } from "./auth";
+import ReservationForm from "../components/ReservationForm.svelte";
+import ReservationInfo from "../components/ReservationInfo.svelte";
+
 
 
 async function logVisiting(u: User) {
@@ -34,148 +36,91 @@ async function logVisiting(u: User) {
   }
 }
 
-// const check_database_available = async (remote_source: string) => {
-//   const result = await invoke("check_db");
-//   console.log("result", result)
-//   if (result === 'OK') {
-//     return true
-//   }
-//   return false
-// }
-// const check_settings_available = async (remote_source: string) => {
-//   const settingConnected = await exists(`${remote_source}\\settings.json`);
-//   if (settingConnected) {
-//     const setting_okay = await init_settings(remote_source);
-//     if (!setting_okay) {
-//       return false;
-//     }
-//     return true;
-//   } else {
-//     errorHandler.showError("远程设置文件不存在");
-//     return false;
-//   }
-// }
-// const init_settings = async (remote_source: string) => {
-//   try {
-
-//     const settings = await readTextFile(`${remote_source}\\settings.json`);
-//     const config = JSON.parse(settings);
-
-//     if (config.tests && config.project_engineers && config.testing_engineers && config.station_orders) {
-
-//       setGlobal("tests", config.tests);
-//       setGlobal("project_engineers", config.project_engineers);
-//       setGlobal("testing_engineers", config.testing_engineers);
-//       setGlobal("station_orders", config.station_orders);
-//       setGlobal("loadSetting", config.loadSetting);
-//       return true;
-//     }
-//     errorHandler.showError("设置文件信息不完整");
-//     return false;
-//   } catch (e) {
-//     errorHandler.showError("初始化设置文件出错：" + e);
-//     return false;
-//   }
-
-// }
-
-// const check_if_user_okay = async (remote_source: string) => {
-//   const u: string = await invoke("check_user");
-//   try {
-
-//     const currentUser: User = JSON.parse(u);
-//     const encryptedContent = await readTextFile(`${remote_source}\\auth.json`);
-//     const authContent: Authorization[] = await AuthUtils.decryptFile(encryptedContent);
-//     const userAllowable = authContent?.find((a: Authorization) => a.username.toLowerCase() === currentUser.user.toLowerCase() && a.machinename.toLowerCase() === currentUser.machine.toLowerCase());
-//     console.log(userAllowable)
-//     if (userAllowable) {
-//       setGlobal("user", { ...currentUser, role: userAllowable.role, fullname: userAllowable.englishname });
-//       return true;
-//     }
-//     return false;
-//   } catch (e) {
-//     errorHandler.showError("检查用户授权信息出错：" + e);
-//     return false;
-//   }
-// }
-// const set_remote_source=async()=>{
-//   const init_result = await confirm("请检查下面内容：\n 1.远程数据源当前不可用，或未设置\n 2.你未被授权\n 请重新选择远程数据源或退出", {
-//     title: "错误",
-//     kind: "warning",
-//   });
-//   if (!init_result) {
-//     await message("没有选择远程数据源或者远程数据源暂时不可用,无法使用本软件，软件将退出！");
-//     const window = await getCurrentWindow();
-//     await window.close();
-//     return;
-//   }
-//   const result = await open({
-//     title: "远程数据源不可用或未设置，请选择远程数据源或退出",
-//     directory: true,
-//   });
-//   if (result) {
-//     const store = await Store.load("settings.json");
-//     await store.set("remote_source", result);
-//     await message("已设置远程数据源,请重启软件已生效！");
-//   } else {
-//     await message("没有选择远程数据源或者远程数据源暂时不可用,无法使用本软件，软件将退出！");
-//   }
-//   const window = await getCurrentWindow();
-//   await window.close();
-//   return;
-// }
-export const init = async () => {
-  const settings=await apiService.Get("general/settings");
-  if(settings){
-    setGlobal("tests", settings.tests);
-    setGlobal("project_engineers", settings.project_engineers);
-    setGlobal("testing_engineers", settings.testing_engineers);
-    setGlobal("station_orders", settings.station_orders);
-    setGlobal("loadSetting", settings.loadSetting);
+export const calendarPageInit=async()=>{
+  if(!getGlobal("tests")||!getGlobal("project_engineers")||!getGlobal("testing_engineers")||!getGlobal("station_orders")||!getGlobal("loadSetting")){
+  
+    const settings=await apiService.Get("general/settings");
+    if(settings){
+      setGlobal("tests", settings.tests);
+      setGlobal("project_engineers", settings.project_engineers);
+      setGlobal("testing_engineers", settings.testing_engineers);
+      setGlobal("station_orders", settings.station_orders);
+      setGlobal("loadSetting", settings.loadSetting);
+    }else{
+      errorHandler.showError("获取设置失败，请检查网络连接");
+    }
   }
   const ifTokenExisted=localStorage.getItem("accessToken");
-  if(!ifTokenExisted){
-    const user=await apiService.Get("/auth/me");
+  if(ifTokenExisted&&!getGlobal("user")){
+    const user=await apiService.Post("/auth/me");
+    console.log(user)
     if(user){
       setGlobal("user",user);
     }
   }
-  const station_order=localStorage.getItem("station_orders");
-  if(station_order){
-    setGlobal("station_orders", JSON.parse(station_order));
+}
+export const dayPageInit = async () => {
+  if(!getGlobal("tests")||!getGlobal("project_engineers")||!getGlobal("testing_engineers")||!getGlobal("station_orders")||!getGlobal("loadSetting")){
+  
+    const settings=await apiService.Get("general/settings");
+    if(settings){
+      setGlobal("tests", settings.tests);
+      setGlobal("project_engineers", settings.project_engineers);
+      setGlobal("testing_engineers", settings.testing_engineers);
+      setGlobal("station_orders", settings.station_orders);
+      setGlobal("loadSetting", settings.loadSetting);
+    }else{
+      errorHandler.showError("获取设置失败，请检查网络连接");
+    }
   }
-  const test_frequency=localStorage.getItem("test_frequency");
-  if(test_frequency){
-    setGlobal("test_frequency", JSON.parse(test_frequency));
+  const ifTokenExisted=localStorage.getItem("accessToken");
+  if(ifTokenExisted&&!getGlobal("user")){
+    const user=await apiService.Post("/auth/me");
+    if(user){
+      console.log(user)
+      setGlobal("user",user);
+    }
+  }
+  if(!getGlobal("test_frequency")){
+
+    const test_frequency=localStorage.getItem("test_frequency");
+    if(test_frequency){
+      setGlobal("test_frequency", JSON.parse(test_frequency));
+    }
   }
 };
 
-export const reservationBlockClickPrecheck = (reservation_date: string, current_user?: User, project_engineer?: string, reservate_by?: string) => {
-  //当date转换成日期后，在今天之前，不允许预约。如果正好是今天，允许预约
-
-  const today = new Date().toISOString().split('T')[0];
-  // 如果正好是今天，允许预约
-  if (reservation_date < today) {
-    errorHandler.showWarning("不能创建过去的预约");
-    return false;
-  }
+export const settingPageInit = async () => {
+  if(!getGlobal("tests")||!getGlobal("project_engineers")||!getGlobal("testing_engineers")||!getGlobal("station_orders")||!getGlobal("loadSetting")){
   
-  if(!current_user){
-    return true;
+    const settings=await apiService.Get("general/settings");
+    if(settings){
+      setGlobal("tests", settings.tests);
+      setGlobal("project_engineers", settings.project_engineers);
+      setGlobal("testing_engineers", settings.testing_engineers);
+      setGlobal("station_orders", settings.station_orders);
+      setGlobal("loadSetting", settings.loadSetting);
+    }else{
+      errorHandler.showError("获取设置失败，请检查网络连接");
+    }
   }
-  // 当项目工程师不是当前工程师时，不允许修改预约
-  if (reservate_by === current_user?.user) {
-    errorHandler.showWarning("该预约由你创建，允许修改");
-    return true;
+  const ifTokenExisted=localStorage.getItem("accessToken");
+  if(ifTokenExisted&&!getGlobal("user")){
+    const user=await apiService.Post("/auth/me");
+    if(user){
+      console.log(user)
+      setGlobal("user",user);
+    }
   }
-  // 当项目工程师不是当前工程师时，不允许修改预约
-  if (project_engineer && (project_engineer !== current_user?.user||reservate_by===current_user?.user)) {
-    errorHandler.showWarning("不属于你的预约或不是由你创建，无法修改");
-    return false;
-  }
+  if(!getGlobal("test_frequency")){
 
-  return true;
-}
+    const test_frequency=localStorage.getItem("test_frequency");
+    if(test_frequency){
+      setGlobal("test_frequency", JSON.parse(test_frequency));
+    }
+  }
+};
+
 export const recordTestsFrequency = async (currentReservation: Reservation) => {
   try {
 
@@ -226,7 +171,7 @@ function fillEmptyReservationFields(reservation: Partial<ReservationDTO>): Reser
     reservation_status: reservation.reservation_status || 'normal'
   };
 }
-export const submitReservation = async (reservation: Reservation, isCreate: boolean) => {
+export const submitReservation = async (reservation: Reservation, isCreate: boolean,role:string) => {
   try {
     if (isCreate) {
 
@@ -242,7 +187,7 @@ export const submitReservation = async (reservation: Reservation, isCreate: bool
         await invoke("create_reservations", { reservation: filledReservation });
         errorHandler.showInfo("创建成功");
       }
-      modalStore.close();
+      hideModal();
       // loadingIndicator++;
     }
   } catch (e) {
@@ -266,6 +211,153 @@ export const deleteReservation = async (reservation: Reservation) => {
     }
   }
 }
+
+/**
+ * 检查用户是否可以编辑预约
+ * @param reservationDate 预约日期
+ * @param user 当前用户
+ * @param projectEngineer 预约的项目工程师
+ * @param reservateBy 预约创建者
+ * @returns 是否允许编辑
+ */
+export const reservationBlockClickPrecheck = (reservationDate: string, user: User, projectEngineer: string, reservateBy: string): boolean => {
+  if (!user) return false;
+  
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const reserveDate = new Date(reservationDate);
+  reserveDate.setHours(0, 0, 0, 0);
+  
+  // 检查日期是否为今天或未来
+  const isCurrentOrFuture = reserveDate >= today;
+  
+  // 如果是管理员，可以编辑任何预约
+  if (user.role === 'admin') return true;
+  
+  // 如果是工程师，只能编辑自己的预约，且只能编辑当天或未来的预约
+  if (user.role === 'engineer') {
+    const isOwnReservation = 
+      projectEngineer === user.username || 
+      reservateBy === user.username;
+    
+    return isCurrentOrFuture && isOwnReservation;
+  }
+  
+  return false;
+};
+
+/**
+ * 处理预约块点击事件
+ * @param reservation 当前预约信息（如果存在）
+ * @param station 工作站信息
+ * @param selectedDate 选中的日期
+ */
+export const handleReservationBlockClick = (reservation: Reservation | null, station: Station, selectedDate: string) => {
+  const user = getGlobal("user");
+  console.log('start')
+  // 1. 用户为游客（未登录）情况
+  if (!user) {
+    if (reservation) {
+      // 1.a 有预约，显示预约信息
+      showModal(ReservationInfo as any, { reservation });
+    } else {
+      // 1.b 没有预约，显示提示信息
+      errorHandler.showInfo("无预约");
+    }
+    return;
+  }
+
+  // 2. 用户为管理员情况
+  if (user.role.toLowerCase() === 'admin') {
+    console.log('admin')
+    if (reservation) {
+      // 2.a 有预约，显示编辑表单
+      showModal(ReservationForm as any, {
+        item: reservation,
+        isSimpleMode: true,
+        submitHandler: async () => {
+          await submitReservation(reservation, false, user.role);
+        },
+        onNegative: () => {
+          hideModal();
+        }
+      });
+    } else {
+      // 2.b 没有预约，显示创建表单
+      showModal(ReservationForm as any, {
+        item: {
+          station_id: station.id,
+          reservation_date: selectedDate,
+        } as Reservation,
+        isSimpleMode: true,
+        onNegative: () => {
+          hideModal();
+        }
+      });
+    }
+    return;
+  }
+
+  // 3. 用户为工程师情况
+  if (user.role.toLowerCase() === 'engineer') {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const reserveDate = new Date(selectedDate);
+    reserveDate.setHours(0, 0, 0, 0);
+    
+    // 检查日期是否为今天或未来
+    const isCurrentOrFuture = reserveDate >= today;
+    
+    if (reservation) {
+      // 3.a 有预约
+      // 检查条件A：是否是当前用户的预约
+      const isOwnReservation = 
+        reservation.project_engineer === user.username || 
+        reservation.reservate_by === user.username;
+      
+      // 条件A和B都满足时，显示编辑表单
+      if (isCurrentOrFuture && isOwnReservation) {
+        showModal(ReservationForm as any, {
+          item: reservation,
+          isSimpleMode: true,
+          submitHandler: async () => {
+            await submitReservation(reservation, false, user.role);
+          },
+          onNegative: () => {
+            hideModal();
+          }
+        });
+      } else {
+        // 不满足条件，显示提示信息
+        if (!isCurrentOrFuture) {
+          errorHandler.showWarning("不能修改过去的预约");
+        } else if (!isOwnReservation) {
+          errorHandler.showWarning("只能修改自己创建的预约");
+        }
+        
+        // 仍然显示预约信息（只读）
+        showModal(ReservationInfo as any, { reservation });
+      }
+    } else {
+      // 3.b 没有预约
+      // 只检查条件B：时间是否为今天或未来
+      if (isCurrentOrFuture) {
+        showModal(ReservationForm as any, {
+          item: {
+            station_id: station.id,
+            reservation_date: selectedDate,
+          } as Reservation,
+          isSimpleMode: true,
+          onNegative: () => {
+            hideModal();
+          }
+        });
+      } else {
+        errorHandler.showWarning("不能为过去的日期创建预约");
+      }
+    }
+  }
+};
 
 
 

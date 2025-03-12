@@ -9,7 +9,8 @@ namespace emc_api.Repositories
         Task<IEnumerable<Reservation>> GetReservationsByDateAsync(string date);
         Task<IEnumerable<Reservation>> GetReservationsByMonthAsync(string month, string projectEngineer = null);
         Task<IEnumerable<Reservation>> GetReservationsByYearAsync(string year, string projectEngineer = null);
-        Task<IEnumerable<Reservation>> GetAllReservationsAsync(string timeRange, string projectEngineer = null,string createdBy=null);
+        Task<IEnumerable<Reservation>> GetAllReservationsAsync(string timeRange, string? projectEngineer = null, string? createdBy = null);
+        Task<PaginatedResult<Reservation>> GetPaginatedReservationsAsync(string timeRange, string? projectEngineer = null, string? createdBy = null, int pageNumber = 1, int pageSize = 10);
         Task<IEnumerable<Reservation>> GetReservationsByStationAndMonthAsync(int stationId, string month);
         Task<bool> GetStationStatusPerDateAndTimeslotAsync(int id, string date, string timeSlot);
         Task<IEnumerable<StationStatus>> GetStationStatusPerDateAsync(int id, string date);
