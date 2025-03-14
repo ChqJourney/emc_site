@@ -20,7 +20,7 @@
     
 </script>
 
-<h2>{label}</h2>
+<h2>{label}:{currentStation.name}</h2>
 
 <div class="tab-container">
     <div class="tabs">
@@ -79,7 +79,10 @@
         gap: 4px;
         margin-bottom: -1px;
     }
-
+    .tab-content{
+        padding: 20px;
+        min-width: 500px;
+    }
     .tab-button {
         padding: 12px 24px;
         background: transparent;

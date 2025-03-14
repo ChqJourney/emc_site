@@ -430,8 +430,8 @@ WHERE NOT EXISTS (
 
         public async Task<bool> CreateSeventAsync(SeventDto sevent)
         {
-            var sql = @"INSERT INTO s_events (name, from_date, to_date, station_id, updated_By)
-                   VALUES (@Name, @FromDate, @ToDate, @StationId,@UpdatedBy)";
+            var sql = @"INSERT INTO s_events (name, from_date, to_date, station_id,created_by, updated_by)
+                   VALUES (@Name, @FromDate, @ToDate, @StationId,@CreatedBy,@UpdatedBy)";
             using var _connection = await CreateConnection();
             var result = await _connection.ExecuteAsync(sql, sevent);
             return result > 0;
@@ -444,6 +444,7 @@ WHERE NOT EXISTS (
                            from_date = @FromDate,
                            to_date = @ToDate,
                            station_id = @StationId,
+                           created_by = @CreatedBy,
                            updated_by = @UpdatedBy
                            WHERE id = @Id";
             using var _connection = await CreateConnection();
@@ -469,7 +470,7 @@ WHERE NOT EXISTS (
 
         public async Task<IEnumerable<Sevent>> GetSeventsByStationIdAsync(int id)
         {
-            var sql = "SELECT * FROM s_events WHERE station_id = @Id";
+            var sql = "SELECT name, from_date, to_date, station_id,created_by, updated_by,created_on,updated_on FROM s_events WHERE station_id = @Id";
             using var _connection = await CreateConnection();
             var result = await _connection.QueryAsync<Sevent>(sql, new { Id = id });
             return result ?? Enumerable.Empty<Sevent>();

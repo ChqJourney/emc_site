@@ -4,11 +4,17 @@ namespace emc_api.Models
 {
     public class SeventDto
     {
+        [JsonPropertyName("name")]
         public string Name { get; set; }
+        [JsonPropertyName("from_date")]
         public string FromDate { get; set; }
+        [JsonPropertyName("to_date")]
         public string ToDate { get; set; }
+        [JsonPropertyName("station_id")]
         public int StationId { get; set; }
+        [JsonPropertyName("created_by")]
         public string CreatedBy { get; set; }
+        [JsonPropertyName("updated_by")]
         public string UpdatedBy { get; set; }
     }
 
@@ -19,18 +25,18 @@ namespace emc_api.Models
         [JsonPropertyName("name")]
         public string Name { get; set; }
         [JsonPropertyName("from_date")]
-        public string FromDate { get; set; }
+        public string From_Date { get; set; }
         [JsonPropertyName("to_date")]
-        public string ToDate { get; set; }
+        public string To_Date { get; set; }
         [JsonPropertyName("station_id")]
-        public int StationId { get; set; }
+        public int Station_Id { get; set; }
         [JsonPropertyName("created_on")]
-        public DateTime CreatedOn { get; set; }
+        public DateTime Created_On { get; set; }
         [JsonPropertyName("updated_on")]
-        public DateTime UpdatedOn { get; set; }
+        public DateTime Updated_On { get; set; }
         [JsonPropertyName("created_by")]
-        public string CreatedBy { get; set; }
+        public string Created_By { get; set; }
         [JsonPropertyName("updated_by")]
-        public string UpdatedBy { get; set; }
+        public string Updated_By { get; set; }
     }
 }

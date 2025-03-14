@@ -1,40 +1,38 @@
 <script lang="ts">
     import type { Station, StationDTO } from "../../../biz/types";
+    import StationForm from "../../../components/StationForm.svelte";
   import { showModal, hideModal } from "../../../components/modalStore";
     import SortableTable from "../../../components/SortableTable.svelte";
-    import { message } from "@tauri-apps/plugin-dialog";
-    import { load } from "@tauri-apps/plugin-store";
     import { getGlobal, setGlobal } from "../../../biz/globalStore";
     import { errorHandler } from "../../../biz/errorHandler";
     import type { AppError } from "../../../biz/errors";
-    import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
-    import { invoke } from "@tauri-apps/api/core";
-    import { loadMergedStation, submitStation, deleteStation } from "../../../biz/operation";
     import { exportStations } from "../../../biz/exportSheets";
+    import { apiService } from "../../../biz/apiService";
+    import type{ Component } from "svelte";
     
   let loadingIndicator=$state(0);
   async function loadStations(indicator:number) {
     let stations:Station[]=[];
-    stations=await loadMergedStation(new Date().toISOString().split('T')[0]);
+    stations=await apiService.Get("/stations");
     return stations;
   }
 async function handleStationSubmit(station:Station,isCreate:boolean){ 
-  await submitStation(station,isCreate);
+  await apiService.Post("/stations",station);
   loadingIndicator++;
 }
 
 async function handleCopyStation(station:Station,isCreate:boolean){
   console.log(isCreate)
-  submitStation({...station},isCreate);
+  await apiService.Post("/stations",station);
   loadingIndicator++;
 }
   async function handleStationDelete(station: Station) {
-   await deleteStation(station);
+   await apiService.Delete(`/stations/${station.id}`);
    loadingIndicator++;
   }
   async function handleExportStations() {
     try{
-      const stations = await invoke<Station[]>("get_all_stations");
+      const stations = await apiService.Get("/stations");
       await exportStations(stations);
       errorHandler.showInfo("导出成功");
     } catch (error) {
@@ -62,7 +60,7 @@ async function handleCopyStation(station:Station,isCreate:boolean){
           </svg>
           <span>导出数据</span>
         </button>
-            <button aria-label="添加工位" class="action-button add-button" onclick={()=>showModal(StationForm,{
+            <button aria-label="添加工位" class="action-button add-button" onclick={()=>showModal(StationForm as unknown as Component,{
           label:'添加工位',
           submitHandler:handleStationSubmit,
           onNegative:()=>hideModal()
@@ -95,7 +93,7 @@ async function handleCopyStation(station:Station,isCreate:boolean){
           {
             label: '编辑工位',
             class: 'edit',
-            handler: (station: Station) =>showModal(StationForm, {
+            handler: (station: Station) =>showModal(StationForm as unknown as Component, {
               label: '编辑',
               submitHandler: handleStationSubmit,
               onNegative: () => hideModal(),
@@ -106,7 +104,7 @@ async function handleCopyStation(station:Station,isCreate:boolean){
             label: '拷贝工位',
             class:'insert',
             handler: (station: Station) => {
-              showModal(StationForm, {
+              showModal(StationForm as unknown as Component, {
                 label: `Copy ${station.short_name}`,
                 submitHandler: handleCopyStation,
                 onNegative: () => hideModal(),
@@ -122,16 +120,13 @@ async function handleCopyStation(station:Station,isCreate:boolean){
         ]}
         draggable={true}
         onRowReorder={async(orders:{id:number,seq:number}[])=>{
-          const remote_source=getGlobal("remote_source");
-          const settingsStr=await readTextFile(`${remote_source}\\settings.json`);
-          const settings=JSON.parse(settingsStr);
-          const newSettings={...settings,station_orders:orders};
-          console.log(newSettings)
-          await writeTextFile(`${remote_source}\\settings.json`,JSON.stringify(newSettings));
-          const store=await load("settings.json");
-          await store.set("station_orders",orders);
-          setGlobal("station_orders",orders);
-          
+          const stationOrders=await apiService.Get("/station_orders");
+          const newStationOrders=stationOrders.map((order:any)=>{
+            const newOrder=orders.find((o:any)=>o.id===order.id);
+            return {...order,seq:newOrder?.seq??order.seq};
+          });
+          await apiService.Put("/station_orders",newStationOrders);
+          loadingIndicator++;
         }}
       />
     {/await}

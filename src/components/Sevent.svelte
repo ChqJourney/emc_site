@@ -3,10 +3,12 @@
     import type { Station, Sevent, SeventDTO, StationDTO } from "../biz/types";
     import { getGlobal } from "../biz/globalStore";
     import { errorHandler } from "../biz/errorHandler";
-    import { invoke } from "@tauri-apps/api/core";
     import { hideModal } from "./modalStore";
+    import { apiService } from "../biz/apiService";
+    import type { AppError } from "../biz/errors";
 let {currentStation}:{currentStation:Station}= $props();
 const user=getGlobal("user");
+console.log(user);
     let sevents: Sevent[] =$state([]); 
     let editingId: number | null = $state(null) as number | null;
     let editingSevent: SeventDTO =$state({
@@ -14,16 +16,16 @@ const user=getGlobal("user");
         from_date: "",
         to_date: "",
         station_id: currentStation.id,
-        created_By: "",
-        updated_By: ""
+        created_by: user.username,
+        updated_by: user.username
     });
     let newSevent: SeventDTO =$state({
         name: "",
         from_date: new Date().toISOString().split("T")[0],
         to_date: new Date().toISOString().split("T")[0],
         station_id: currentStation.id,
-        created_By: user.user,
-        updated_By: ""
+        created_by: user.username,
+        updated_by: user.username
     });
 
     onMount(async () => {
@@ -31,24 +33,33 @@ const user=getGlobal("user");
     });
 
     async function loadSevents() {
-        if (currentStation.id) {
-            sevents = await invoke<Sevent[]>("get_sevents_by_station_id", {id:currentStation.id});
+        try{
+
+            if (currentStation.id) {
+                sevents = await apiService.Get(`/sevents/station/${currentStation.id}`);
+                console.log(sevents);
+            }
+        }catch(error){
+            errorHandler.handleError(error as AppError);
+            return []
         }
     }
 
     const addSevent = async () => {
         if (currentStation.id && newSevent.name && newSevent.from_date && newSevent.to_date&&newSevent.from_date<=newSevent.to_date) {
             newSevent.station_id = currentStation.id;
-            newSevent.created_By = user.user;
-            await invoke("create_sevent", {sevent:newSevent});
+            newSevent.created_by = user.username??"";
+            console.log(newSevent);
+            const result=await apiService.Post("/sevents",newSevent);
+            console.log(result);
             await loadSevents();
             newSevent = {
                 name: "",
                 from_date: "",
                 to_date: "",
                 station_id: currentStation.id,
-                created_By: "",
-                updated_By: ""
+                created_by: user.username??"",
+                updated_by: ""
             };
         }else{
             errorHandler.showError("信息缺失或时间范围无效");
@@ -62,8 +73,8 @@ const user=getGlobal("user");
             from_date: sevent.from_date,
             to_date: sevent.to_date,
             station_id: sevent.station_id,
-            created_By: sevent.created_by,
-            updated_By: sevent.updated_by
+            created_by: sevent.created_by,
+            updated_by: sevent.updated_by
         };
     };
 
@@ -82,7 +93,7 @@ const user=getGlobal("user");
 
     const deleteSevent = async (id: number) => {
         if (confirm('确定要删除这条记录吗？')) {
-            await invoke("delete_sevent", {id});
+            await apiService.Delete(`/sevents/${id}`);
             await loadSevents();
         }
     };
@@ -309,6 +320,7 @@ const user=getGlobal("user");
 
     .select-type, .date-input {
         width: 100%;
+        min-width: 100px;
         padding: 0.5rem;
         border: 1px solid #ddd;
         border-radius: 6px;

@@ -28,7 +28,7 @@ namespace emc_api.Controllers
         public async Task<IActionResult> GetById(int id)
         {
             var result = await _repository.GetSeventByIdAsync(id);
-            return result==null?NotFound("No event found"):Ok(result);
+            return result==null?Ok(new List<SeventDto>()) :Ok(result);
         }
         [HttpGet("station/{id}")]
         public async Task<IActionResult> GetByStation(int id)

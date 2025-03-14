@@ -42,7 +42,7 @@ namespace emc_api.Controllers
             var result = await _repository.GetReservationsByStationAndMonthAsync(id, month);
             return Ok(result);
         }
-        [Authorize(Roles = "Admin,Engineer")]
+        [Authorize(Roles = "Admin")]
         [HttpGet]
         public async Task<IActionResult> GetAll([FromQuery] string timeRange, [FromQuery] string? projectEngineer, [FromQuery] string? createdBy,
             [FromQuery] int? pageNumber = null, [FromQuery] int? pageSize = null)

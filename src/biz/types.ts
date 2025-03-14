@@ -98,8 +98,8 @@ export interface SeventDTO{
     from_date:string;
     to_date:string;
     station_id:number;
-    created_By:string;
-    updated_By:string;
+    created_by:string;
+    updated_by:string;
 }
 export interface Sevent{
     id:number;

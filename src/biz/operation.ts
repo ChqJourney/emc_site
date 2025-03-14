@@ -91,7 +91,7 @@ export const dayPageInit = async () => {
 };
 
 export const settingPageInit = async () => {
-  if(!getGlobal("tests")||!getGlobal("project_engineers")||!getGlobal("testing_engineers")||!getGlobal("station_orders")||!getGlobal("loadSetting")){
+  if(!getGlobal("user")||!getGlobal("tests")||!getGlobal("project_engineers")||!getGlobal("testing_engineers")||!getGlobal("station_orders")||!getGlobal("loadSetting")){
   
     const settings=await apiService.Get("general/settings");
     if(settings){
@@ -110,6 +110,8 @@ export const settingPageInit = async () => {
     if(user){
       console.log(user)
       setGlobal("user",user);
+    }else{
+      errorHandler.showError("获取用户失败，请检查网络连接");
     }
   }
   if(!getGlobal("test_frequency")){
