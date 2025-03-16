@@ -175,6 +175,7 @@
     grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
     overflow-y: auto;
     max-height: 600px;
+    padding-bottom: 10rem;
   }
 
   .info-item {

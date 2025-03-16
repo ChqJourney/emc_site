@@ -105,7 +105,7 @@
         top: 50%;
         left: 50%;
         transform: translate(-50%, -48%);
-        width: auto;
+        width: 95%;
         min-width:40%;
         height: 90%;
         background: white;
@@ -115,6 +115,7 @@
         opacity: 0;
         transition: all 0.4s cubic-bezier(0.19, 1, 0.22, 1);
         box-shadow: 0 10px 25px rgba(0, 0, 0, 0);
+        /* padding-bottom:6rem; */
     }
     
     .modal.visible {
@@ -122,5 +123,10 @@
         transform: translate(-50%, -50%);
         box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
     }
-    
+    @media (min-width: 480px) {
+        .modal {
+            width: auto;
+            min-width: 40%;
+        }
+    }
 </style>

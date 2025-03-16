@@ -431,8 +431,6 @@ WHERE NOT EXISTS (
         {
             using var _connection = await CreateConnection();
             var sevents = await _connection.QueryAsync<Sevent>("SELECT * FROM s_events");
-            Console.WriteLine("allaa");
-            Console.WriteLine(sevents.Count());
             return sevents;
         }
         public async Task<Sevent> GetSeventByIdAsync(int id)

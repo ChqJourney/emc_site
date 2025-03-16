@@ -542,18 +542,24 @@
         padding: 0 1rem;
         width: 100%;
         max-height: 95vh;
-        padding-bottom: 8rem; /* 底部多留些空间 */
+        padding-bottom: calc(4rem + 80px); /* 增加底部padding，为固定按钮组留出空间 */
+        -webkit-overflow-scrolling: touch;
     }
 
     h2 {
         margin: 0 0 1.5rem;
         color: #2c3e50;
         font-weight: 500;
+        position: sticky;
+        top: 0;
+        background: white;
+        padding: 1rem 0;
+        z-index: 1;
     }
 
     .form-row {
         display: flex;
-        gap: 2rem;
+        gap: 1rem;
         margin-bottom: 1.5rem;
         justify-content: space-between;
     }
@@ -581,21 +587,24 @@
     input,
     select,
     textarea {
-        width: 95%;
-        padding: 0.5rem;
+        width: 100%;
+        padding: 0.75rem;
         border: 1px solid #e2e8f0;
         border-radius: 4px;
-        font-size: 0.9rem;
+        font-size: 1rem;
         background: white;
         transition: border-color 0.2s;
+        box-sizing: border-box;
     }
+
     input[type="date"] {
-        padding: 0.5rem;
-        width: 95%;
+        padding: 0.75rem;
+        width: 100%;
     }
 
     input:focus,
-    select:focus {
+    select:focus,
+    textarea:focus {
         outline: none;
         border-color: #4299e1;
         box-shadow: 0 0 0 2px rgba(66, 153, 225, 0.2);
@@ -606,13 +615,24 @@
         justify-content: space-between;
         gap: 1rem;
         margin-top: 1rem;
+        position: fixed; /* 改为 fixed 定位 */
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background: white;
+        padding: 1rem;
+        z-index: 10;
+        box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
     }
-
+    form{
+            padding-bottom: 20px;
+        }
     .button-group button {
-        padding: 0.5rem 1.5rem;
+        padding: 0.75rem 1.5rem;
         border: none;
         border-radius: 4px;
         cursor: pointer;
+        font-size: 1rem;
     }
 
     .button-group .cancel {
@@ -623,6 +643,7 @@
     .button-group .submit {
         background: #4a90e2;
         color: white;
+        min-width: 100px;
     }
 
     .button-group .submit:hover {
@@ -661,6 +682,57 @@
         }
         100% {
             transform: rotate(360deg);
+        }
+    }
+
+    /* 移动设备适配 */
+    @media screen and (max-width: 768px) {
+        .modal-content {
+            padding: 0 0.5rem;
+            max-height: 100vh;
+            padding-bottom: calc(5rem + 20px); /* 移动端增加更多底部空间 */
+        }
+
+        .form-row {
+            flex-direction: column;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+        form{
+            padding-bottom: 120px;
+        }
+        .form-group {
+            width: 100%;
+            margin-right: 0;
+        }
+
+        .form-group:not(:last-child) {
+            margin-right: 0;
+        }
+
+        input,
+        select,
+        textarea {
+            width: 100%;
+            font-size: 16px; /* 防止 iOS 自动缩放 */
+        }
+
+        .button-group {
+            padding: 1rem 0.5rem;
+            background: rgba(255, 255, 255, 0.98);
+            backdrop-filter: blur(10px);
+        }
+
+        .button-group button {
+            padding: 0.75rem 1rem;
+            flex: 1;
+            min-height: 44px; /* 确保移动端按钮有足够的触摸区域 */
+        }
+
+        h2 {
+            padding: 1rem 0.5rem;
+            margin-bottom: 1rem;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         }
     }
 </style>

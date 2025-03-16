@@ -128,7 +128,7 @@ builder.WebHost.ConfigureKestrel(options =>
 var app = builder.Build();
 
 // 添加请求日志中间件 - 移动到管道最前面
-app.UseRequestLogging();
+// app.UseRequestLogging();
 
 // 配置静态文件和SPA fallback
 app.UseCors("AllowAll");
