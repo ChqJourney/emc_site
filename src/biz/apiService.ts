@@ -1,6 +1,7 @@
 // apiService.ts
 import axios, { AxiosError, type AxiosInstance, type AxiosRequestConfig, type AxiosResponse } from 'axios';
 import type { User } from './types';
+import { setGlobal } from './globalStore';
 export interface ApiServiceConfig {
     baseURL: string;
     timeout?: number;
@@ -203,7 +204,7 @@ class ApiService {
                     // 处理 401 错误
                     if (error.response?.status === 401 && !originalRequest._retry) {
                         // 新增登录端点检查
-                        const isLoginEndpoint = originalRequest.url?.includes('/auth/login');
+                        const isLoginEndpoint = originalRequest.url?.includes('/auth/login')||originalRequest.url?.includes('/auth/refresh-token')||originalRequest.url?.includes('/auth/logout');
                         if (isLoginEndpoint) {
                             console.log('登录请求返回401，直接拒绝');
                             return Promise.reject(error);
@@ -387,18 +388,34 @@ class ApiService {
 
         try {
             const response = await this.axiosInstance.request<T>(config);
+            this.logRequest(config, response);
             return response.data;
         } catch (error) {
+            this.logRequest(config, null, error);
+            
             // 由于拦截器已经处理了 401，这里不需要再处理
             if (axios.isAxiosError(error)) {
                 // 记录详细错误信息以便调试
                 console.error(`请求失败 [${config.method}] ${config.url}:`,
                     error.response?.status, error.response?.data);
-                throw error.response?.data || { error: 'Network Error' };
+                
+                // 创建一个更有意义的错误对象
+                const errorData = error.response?.data || { message: 'Network Error' };
+                const status = error.response?.status || 0;
+                const statusText = error.response?.statusText || 'Unknown';
+                
+                // 抛出一个包含更多信息的错误对象
+                throw {
+                    message: `请求失败: ${status} ${statusText}`,
+                    status,
+                    statusText,
+                    data: errorData
+                };
             }
+            
             // 明确记录并重新抛出未知错误
             console.error('未知请求错误:', error);
-            throw { error: 'Unknown Error' };
+            throw { message: '发生未知错误', originalError: String(error) };
         }
     }
 
@@ -446,13 +463,16 @@ class ApiService {
             // 先发送登出请求，即使请求失败也要清除本地认证
             try {
                 const tokenData = this.getToken();
+                console.log("tokenData:", tokenData);
                 await this.Post('/auth/logout', { accessToken: tokenData.accessToken, refreshToken: tokenData.refreshToken });
             } catch (error) {
                 console.warn('服务器登出请求失败，但会继续清除本地认证:', error);
-            }
+            }finally{
 
-            // 无论如何都清除本地认证状态
-            this.clearAuth();
+                
+                // 无论如何都清除本地认证状态
+                this.clearAuth();
+            }
         } catch (error) {
             console.error('登出过程发生错误:', error);
             // 确保在错误情况下也清除本地认证
@@ -645,6 +665,7 @@ class ApiService {
         this.currentConfig.storage?.removeItem('accessToken');
         this.currentConfig.storage?.removeItem('refreshToken');
         this.currentConfig.storage?.removeItem('tokenExpiresAt');
+        setGlobal("user",null);
     }
     private isAuthEndpoint(url?: string): boolean {
         if (!url) return false;
@@ -664,8 +685,9 @@ class ApiService {
 
 // 使用示例
 export const apiService = new ApiService({
-    baseURL: 'https://api.example.com',
-    timeout: 5000
+    baseURL: '',  // 使用相对路径，请求会基于当前域名
+    timeout: 5000,
+    storage: undefined
 });
 
 export const checkAuth = async () => {

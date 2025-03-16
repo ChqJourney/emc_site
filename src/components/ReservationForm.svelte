@@ -1,38 +1,37 @@
 <script lang="ts">
-    import type {
-        Reservation,
-        Station
-    } from "../biz/types";
+    import type { Reservation, Station, User } from "../biz/types";
 
     import MultiSelect from "../components/MultiSelect.svelte";
     import { getGlobal, setGlobal } from "../biz/globalStore";
     import { errorHandler } from "../biz/errorHandler";
     import type { AppError } from "../biz/errors";
-    import { Store } from "@tauri-apps/plugin-store";
-    // import { getTestFrequency, recordTestsFrequency } from "../biz/operation";
-    import { confirm } from "@tauri-apps/plugin-dialog";
-    import { invoke } from "@tauri-apps/api/core";
     import { hideModal } from "./modalStore";
-    import { getTestFrequency, recordTestsFrequency } from "../biz/operation";
+    import {
+        getTestFrequency,
+        recordTestsFrequency,
+    } from "../biz/localService";
     import SingleSelect from "./SingleSelect.svelte";
     import { apiService } from "../biz/apiService";
     import { onMount } from "svelte";
     import { tick } from "svelte";
-   let {item,isSimpleMode,submitHandler,onNegative}:{item:Reservation,isSimpleMode:boolean,submitHandler:(reservation:Reservation,isCreate:boolean)=>Promise<void>,onNegative:()=>void}= $props();
+    let { item, isSimpleMode, submitHandler, onNegative } = $props();
     // $inspect(reservation);
-    let isCreate=item===undefined||item.id===undefined||item.id===0
+    let isCreate = item === undefined || item.id === undefined || item.id === 0;
     const initReservation = item;
-    console.log(initReservation)
     let stations: Station[] = $state([]);
     let isSubmitting = $state(false);
     let isLoading = $state(true);
     let isLoadingStationStatus = $state(false);
     let availableStations = $derived(
-        stations.filter((station) => station.status === "in_service" || station.status === "maintenance")
+        stations.filter(
+            (station) =>
+                station.status === "in_service" ||
+                station.status === "maintenance",
+        ),
     );
-    
+
     const initReservationDTO: Reservation = {
-        id:0,
+        id: 0,
         reservation_date: `${new Date().toISOString().split("T")[0]}`,
         time_slot: ``,
         client_name: ``,
@@ -57,14 +56,13 @@
         project_engineers: Array<any>;
         test_engineers: Array<any>;
     };
-    
+
     let config = $state<ConfigType>({
         tests: [],
         project_engineers: [],
-        test_engineers: []
+        test_engineers: [],
     });
     let currentReservation = $state(initReservation ?? initReservationDTO);
-    $inspect(currentReservation)
     let modalExtraInfoShow = $state(false);
     async function loadStations() {
         try {
@@ -72,51 +70,71 @@
             return stations;
         } catch (error) {
             errorHandler.handleError(error as AppError);
-        } 
+        }
     }
     const handleSubmit = async () => {
         console.log(currentReservation);
         try {
             errorHandler.validateRequired(
                 currentReservation.station_id,
-                "工位"
+                "工位",
             );
             errorHandler.validateRequired(
                 currentReservation.reservation_status,
-                "预约状态"
+                "预约状态",
             );
             errorHandler.validateDateElapsed(
                 currentReservation.reservation_date,
-                "日期"
+                "日期",
             );
 
             errorHandler.validateRequired(
                 currentReservation.time_slot,
-                "时间段"
+                "时间段",
             );
-            errorHandler.validateRequired(
-                currentReservation.tests,
-                "测试项目"
-            );
+            errorHandler.validateRequired(currentReservation.tests, "测试项目");
             errorHandler.validateRequired(
                 currentReservation.project_engineer,
-                "项目工程师"
+                "项目工程师",
             );
             errorHandler.validateRequired(
                 currentReservation.testing_engineer,
-                "测试工程师"
+                "测试工程师",
             );
 
             isSubmitting = true;
-            if(currentReservation.reservation_status==="cancelled"&&!isCreate){
-                const isCancelled=await confirm("确认取消预约?",{title:"取消预约",kind:"warning"});
-                if(!isCancelled){
+            const user = getGlobal("user");
+            console.log(currentReservation.reservation_status, isCreate);
+            if (
+                currentReservation.reservation_status === "cancelled" &&
+                !isCreate
+            ) {
+                const isCancelled = await confirm("确认取消预约?");
+                if (isCancelled) {
+                    await submitHandler(
+                        currentReservation as Reservation,
+                        isCreate,
+                        user,
+                    );
+                    return;
+                }
+            } else {
+                await recordTestsFrequency(currentReservation);
+                console.log("start submit");
+
+                if (typeof submitHandler === "function") {
+                    await submitHandler(
+                        currentReservation as Reservation,
+                        isCreate,
+                        user,
+                    );
+                } else {
+                    console.error("submitHandler 不是一个函数");
+                    errorHandler.showError("提交处理函数未定义");
                     return;
                 }
             }
-            await recordTestsFrequency(currentReservation);
-            await submitHandler(currentReservation as Reservation,isCreate);
-           hideModal();
+            hideModal();
         } catch (error) {
             console.error(error);
             errorHandler.handleError(error as AppError);
@@ -138,7 +156,7 @@
         { name: "18:00-20:30", value: "T4", isOccupied: false },
         { name: "20:30-23:59", value: "T5", isOccupied: false },
     ]);
-    
+
     // 预加载基础数据函数
     async function loadBasicData() {
         try {
@@ -146,34 +164,34 @@
             const init_tests = getGlobal("tests") || [];
             const user = getGlobal("user");
             console.log(user);
-            
+
             // 使用完整对象替换而不是直接修改属性
             currentReservation = {
                 ...currentReservation,
-                reservate_by: user?.username ?? "unknown"
+                reservate_by: user?.username ?? "unknown",
             };
-            
+
             const project_engineers = getGlobal("project_engineers") || [];
             const test_engineers = getGlobal("testing_engineers") || [];
-            
+
             // 并行加载站点数据和测试频率数据
             const [stationsData, testsData] = await Promise.all([
                 loadStations(),
-                getTestFrequency(init_tests, currentReservation.station_id)
+                getTestFrequency(init_tests, currentReservation.station_id),
             ]);
-            
+
             stations = stationsData || [];
-            
+
             // 完整替换对象
-            config = { 
-                tests: testsData, 
-                project_engineers, 
-                test_engineers 
+            config = {
+                tests: testsData,
+                project_engineers,
+                test_engineers,
             };
-            
+
             isLoading = false;
             await tick(); // 确保UI更新
-            
+
             // 加载完基础数据后，再加载时间槽状态
             await loadStationStatus();
         } catch (error) {
@@ -182,21 +200,25 @@
             isLoading = false;
         }
     }
-    
+
     // 加载站点状态数据
     async function loadStationStatus() {
         try {
             isLoadingStationStatus = true;
             console.log("加载站点状态...");
-            const stationStatus = await apiService.Get(`/reservations/station_status/?id=${currentReservation.station_id}&date=${currentReservation.reservation_date}`);
+            const stationStatus = await apiService.Get(
+                `/reservations/station_status/?id=${currentReservation.station_id}&date=${currentReservation.reservation_date}`,
+            );
             console.log(stationStatus);
-            
+
             // 创建新数组并完整替换
             const newTimeSlotsOptions = timeSlotsOptions.map((option) => {
-                const isOccupied = stationStatus.some((status:any) => status.timeSlot.includes(option.value));
+                const isOccupied = stationStatus.some((status: any) =>
+                    status.timeSlot.includes(option.value),
+                );
                 return { ...option, isOccupied };
             });
-            
+
             console.log(newTimeSlotsOptions);
             timeSlotsOptions = [...newTimeSlotsOptions];
         } catch (error) {
@@ -206,75 +228,82 @@
             isLoadingStationStatus = false;
         }
     }
-    
+
     // 当日期或站点改变时重新加载时间槽状态
     $effect(() => {
-        if (!isLoading && currentReservation.station_id && currentReservation.reservation_date) {
+        if (
+            !isLoading &&
+            currentReservation.station_id &&
+            currentReservation.reservation_date
+        ) {
             loadStationStatus();
         }
     });
-    
+
     // 使用onMount钩子触发数据加载
     onMount(() => {
         loadBasicData();
     });
-</script>   
-    
-    <div class="modal-content">
-       {#if isLoading}
-         <div class="loading-container">
-           <p>加载中...</p>
-           <div class="loading-spinner"></div>
-         </div>
-       {:else}
-        <h2>{isCreate?"创建预约":"修改预约"}</h2>
-            <form onsubmit={handleSubmit}>
-                <!-- 第一行：工位 -->
-                <div class="form-row">
-                    <div class="form-group full-width">
-                        <label for="station_id">工位*</label>
-                        <select  disabled={isSimpleMode}
-                            bind:value={currentReservation.station_id}
-                        >
-                            <option value="">请选择工位</option>
-                            {#each availableStations as station}
-                                <option
-                                    disabled={station.status === "maintenance"}
-                                    value={station.id}
-                                    >{station.name}{station.status === "maintenance" ? "(维护)" : ""}</option
-                                >
-                            {/each}
-                        </select>
-                    </div>
-                    <div class="form-group full-width">
-                        <label for="reservation_status">预约状态*</label>
-                        <select
-                            bind:value={currentReservation.reservation_status}
-                        >
-                            <option value="normal">Normal</option>
-                            {#if !isCreate}
-                            <option value="cancelled">Cancel</option>
-                            {/if}
-                        </select>
-                    </div>
-                </div>
+</script>
 
-                <!-- 第二行：日期和时间段 -->
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="reservation_date">日期*</label>
-                        <input
-                            type="date"
-                            disabled={isSimpleMode}
-                            bind:value={currentReservation.reservation_date}
-                            min={isCreate ? new Date().toISOString().split('T')[0] : null}
-                        />
-                    </div>
-                    <div class="form-group">
-                        <label for="time_slot">时间段*</label>
-                        {#if isLoadingStationStatus}
-                            <div class="mini-loader">加载时间槽...</div>
-                        {:else}
+<div class="modal-content">
+    {#if isLoading}
+        <div class="loading-container">
+            <p>加载中...</p>
+            <div class="loading-spinner"></div>
+        </div>
+    {:else}
+        <h2>{isCreate ? "创建预约" : "修改预约"}</h2>
+        <form onsubmit={handleSubmit}>
+            <!-- 第一行：工位 -->
+            <div class="form-row">
+                <div class="form-group full-width">
+                    <label for="station_id">工位*</label>
+                    <select
+                        disabled={isSimpleMode}
+                        bind:value={currentReservation.station_id}
+                    >
+                        <option value="">请选择工位</option>
+                        {#each availableStations as station}
+                            <option
+                                disabled={station.status === "maintenance"}
+                                value={station.id}
+                                >{station.name}{station.status === "maintenance"
+                                    ? "(维护)"
+                                    : ""}</option
+                            >
+                        {/each}
+                    </select>
+                </div>
+                <div class="form-group full-width">
+                    <label for="reservation_status">预约状态*</label>
+                    <select bind:value={currentReservation.reservation_status}>
+                        <option value="normal">Normal</option>
+                        {#if !isCreate}
+                            <option value="cancelled">Cancel</option>
+                        {/if}
+                    </select>
+                </div>
+            </div>
+
+            <!-- 第二行：日期和时间段 -->
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="reservation_date">日期*</label>
+                    <input
+                        type="date"
+                        disabled={isSimpleMode}
+                        bind:value={currentReservation.reservation_date}
+                        min={isCreate
+                            ? new Date().toISOString().split("T")[0]
+                            : null}
+                    />
+                </div>
+                <div class="form-group">
+                    <label for="time_slot">时间段*</label>
+                    {#if isLoadingStationStatus}
+                        <div class="mini-loader">加载时间槽...</div>
+                    {:else}
                         <MultiSelect
                             isCreated={isCreate}
                             placeholder="请选择时间段"
@@ -283,49 +312,15 @@
                                 ? currentReservation.time_slot
                                       .split(";")
                                       .filter((value: string) => value)
-                                      .map((value: string) => ({ value,name:reverseTimeSlots[value] }))
+                                      .map((value: string) => ({
+                                          value,
+                                          name: reverseTimeSlots[value],
+                                      }))
                                 : []}
                             onChange={(selectedValues) => {
                                 currentReservation = {
                                     ...currentReservation,
                                     time_slot: selectedValues
-                                        .map(
-                                            (s: any) => s.value,
-                                        )
-                                        .sort((a: any, b: any) =>
-                                            a.localeCompare(b),
-                                        )
-                                        .join(";"),
-                                };
-                            }}
-                        />
-                        {/if}
-                    </div>
-                </div>
-
-                <!-- 第三行：测试项目 -->
-                <div class="form-row">
-                    <div class="form-group full-width">
-                        <label for="tests">测试项目*</label>
-                        <MultiSelect
-                            placeholder="请选择测试项目"
-                            options={config.tests
-                                ? config.tests?.map(
-                                      (testStr:any) => {
-                                          return { ...testStr,value:testStr.name };
-                                      },
-                                  )
-                                : []}
-                            selected={currentReservation.tests
-                                ? currentReservation.tests
-                                      .split(";")
-                                      .filter((name: string) => name)
-                                      .map((name: string) => ({ name,value:name }))
-                                : []}
-                            onChange={(selectedNames) => {
-                                currentReservation = {
-                                    ...currentReservation,
-                                    tests: selectedNames
                                         .map((s: any) => s.value)
                                         .sort((a: any, b: any) =>
                                             a.localeCompare(b),
@@ -334,14 +329,50 @@
                                 };
                             }}
                         />
-                    </div>
+                    {/if}
                 </div>
+            </div>
 
-                <!-- 第四行：项目工程师和测试工程师 -->
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="project_engineer">项目工程师*</label>
-                        <SingleSelect
+            <!-- 第三行：测试项目 -->
+            <div class="form-row">
+                <div class="form-group full-width">
+                    <label for="tests">测试项目*</label>
+                    <MultiSelect
+                        placeholder="请选择测试项目"
+                        options={config.tests
+                            ? config.tests?.map((testStr: any) => {
+                                  return { ...testStr, value: testStr.name };
+                              })
+                            : []}
+                        selected={currentReservation.tests
+                            ? currentReservation.tests
+                                  .split(";")
+                                  .filter((name: string) => name)
+                                  .map((name: string) => ({
+                                      name,
+                                      value: name,
+                                  }))
+                            : []}
+                        onChange={(selectedNames) => {
+                            currentReservation = {
+                                ...currentReservation,
+                                tests: selectedNames
+                                    .map((s: any) => s.value)
+                                    .sort((a: any, b: any) =>
+                                        a.localeCompare(b),
+                                    )
+                                    .join(";"),
+                            };
+                        }}
+                    />
+                </div>
+            </div>
+
+            <!-- 第四行：项目工程师和测试工程师 -->
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="project_engineer">项目工程师*</label>
+                    <SingleSelect
                         options={config.project_engineers || []}
                         placeholder="请选择项目工程师"
                         value={currentReservation.project_engineer}
@@ -351,11 +382,11 @@
                                 project_engineer: value,
                             };
                         }}
-                        />
-                    </div>
-                    <div class="form-group">
-                        <label for="testing_engineer">测试工程师*</label>
-                        <SingleSelect
+                    />
+                </div>
+                <div class="form-group">
+                    <label for="testing_engineer">测试工程师*</label>
+                    <SingleSelect
                         options={config.test_engineers || []}
                         placeholder="请选择测试工程师"
                         value={currentReservation.testing_engineer}
@@ -365,50 +396,44 @@
                                 testing_engineer: value,
                             };
                         }}
-                        />
-                    </div>
+                    />
                 </div>
-                <!-- 第五行：客户名称 -->
-                <div class="form-row">
-                    <div class="form-group full-width">
-                        <label for="client_name">客户名称</label>
-                        <input
-                            type="text"
-                            bind:value={currentReservation.client_name}
-                        />
-                    </div>
-                    <div class="form-group full-width">
-                        <label for="product_name">产品名称</label>
-                        <input
-                            type="text"
-                            bind:value={currentReservation.product_name}
-                        />
-                    </div>
-                </div>
-                
-                <div class="form-row">
-                    <div class="form-group full-width">
-                        <label for="job_no">项目号</label>
-                        <input
+            </div>
+            <!-- 第五行：客户名称 -->
+            <div class="form-row">
+                <div class="form-group full-width">
+                    <label for="client_name">客户名称</label>
+                    <input
                         type="text"
-                        bind:value={currentReservation.job_no}
-                        />
-                    </div>
-                    <div class="form-group full-width">
-                        <label for="sales">销售</label>
-                        <input
-                            type="text"
-                            bind:value={currentReservation.sales}
-                        />
-                    </div>
+                        bind:value={currentReservation.client_name}
+                    />
                 </div>
-                {#if modalExtraInfoShow}
+                <div class="form-group full-width">
+                    <label for="product_name">产品名称</label>
+                    <input
+                        type="text"
+                        bind:value={currentReservation.product_name}
+                    />
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group full-width">
+                    <label for="job_no">项目号</label>
+                    <input type="text" bind:value={currentReservation.job_no} />
+                </div>
+                <div class="form-group full-width">
+                    <label for="sales">销售</label>
+                    <input type="text" bind:value={currentReservation.sales} />
+                </div>
+            </div>
+            {#if modalExtraInfoShow}
                 <!-- 第六行：联系人和电话 -->
                 <div class="form-row">
                     <div class="form-group">
                         <label for="contact_name">联系人</label>
                         <input
-                            type="text" 
+                            type="text"
                             bind:value={currentReservation.contact_name}
                         />
                     </div>
@@ -420,78 +445,84 @@
                         />
                     </div>
                 </div>
-                    <div class="form-row">
-                        <div class="form-group full-width">
-                            <label for="purpose_description">用途描述</label>
-                            <textarea
-                                rows="3"
-                                bind:value={currentReservation.purpose_description}
-                            ></textarea>
-                        </div>
-                    </div>
-                    <div class="form-row">
-                        <div class="form-group full-width">
-                            <label for="reservate_by">创建人</label>
-                            <input
-                            disabled
-                                type="text"
-                                value={currentReservation.reservate_by}
-                            />
-                        </div>
-                        <div class="form-group full-width">
-                            <label for="id">Id</label>
-                            <input
-                            disabled
-                                type="text"
-                                value={currentReservation.id}
-                            />
-                        </div>
-                    </div>
-                    <div class="form-row">
-                        <div class="form-group full-width">
-                            <label for="created_at">创建时间</label>
-                            <input
-                            disabled
-                                type="text"
-                                value={currentReservation.created_on || ""}
-                            />
-                        </div>
-                        <div class="form-group full-width">
-                            <label for="updated_at">更新时间</label>
-                            <input
-                            disabled
-                                type="text"
-                                value={typeof currentReservation.updated_on === 'object' ? currentReservation.updated_on.toISOString().substring(0,19) : ""}
-                            />
-                        </div>
-                    </div>
-                {/if}
-                <div class="button-group">
-                    <button
-                        type="button"
-                        style="background-color: transparent;color:cadetblue;text-decoration: underline;"
-                        onclick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            modalExtraInfoShow = !modalExtraInfoShow;
-                        }}>{modalExtraInfoShow ? "隐藏" : "显示更多"}</button
-                    >
-                    <div>
-                        <button
-                            type="button"
-                            class="cancel"
-                            onclick={onNegative}>取消</button
-                        >
-                        <button type="submit" class="submit" disabled={isSubmitting}>
-                            {isSubmitting ? '提交中...' : '提交'}
-                        </button>
+                <div class="form-row">
+                    <div class="form-group full-width">
+                        <label for="purpose_description">用途描述</label>
+                        <textarea
+                            rows="3"
+                            bind:value={currentReservation.purpose_description}
+                        ></textarea>
                     </div>
                 </div>
-            </form>
-       
-
-        {/if}
+                <div class="form-row">
+                    <div class="form-group full-width">
+                        <label for="reservate_by">创建人</label>
+                        <input
+                            disabled
+                            type="text"
+                            value={currentReservation.reservate_by}
+                        />
+                    </div>
+                    <div class="form-group full-width">
+                        <label for="id">Id</label>
+                        <input
+                            disabled
+                            type="text"
+                            value={currentReservation.id}
+                        />
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group full-width">
+                        <label for="created_at">创建时间</label>
+                        <input
+                            disabled
+                            type="text"
+                            value={currentReservation.created_on || ""}
+                        />
+                    </div>
+                    <div class="form-group full-width">
+                        <label for="updated_at">更新时间</label>
+                        <input
+                            disabled
+                            type="text"
+                            value={typeof currentReservation.updated_on ===
+                            "object"
+                                ? currentReservation.updated_on
+                                      .toISOString()
+                                      .substring(0, 19)
+                                : ""}
+                        />
+                    </div>
+                </div>
+            {/if}
+            <div class="button-group">
+                <button
+                    type="button"
+                    style="background-color: transparent;color:cadetblue;text-decoration: underline;"
+                    onclick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        modalExtraInfoShow = !modalExtraInfoShow;
+                    }}>{modalExtraInfoShow ? "隐藏" : "显示更多"}</button
+                >
+                <div>
+                    <button type="button" class="cancel" onclick={onNegative}
+                        >取消</button
+                    >
+                    <button
+                        type="submit"
+                        class="submit"
+                        disabled={isSubmitting}
+                    >
+                        {isSubmitting ? "提交中..." : "提交"}
+                    </button>
+                </div>
+            </div>
+        </form>
+    {/if}
 </div>
+
 <style>
     /* .modal-overlay {
         position: fixed;
@@ -605,7 +636,7 @@
         justify-content: center;
         height: 200px;
     }
-    
+
     .loading-spinner {
         width: 40px;
         height: 40px;
@@ -615,7 +646,7 @@
         animation: spin 1s linear infinite;
         margin-top: 10px;
     }
-    
+
     .mini-loader {
         font-size: 0.8rem;
         color: #666;
@@ -623,9 +654,13 @@
         display: flex;
         align-items: center;
     }
-    
+
     @keyframes spin {
-        0% { transform: rotate(0deg); }
-        100% { transform: rotate(360deg); }
+        0% {
+            transform: rotate(0deg);
+        }
+        100% {
+            transform: rotate(360deg);
+        }
     }
 </style>

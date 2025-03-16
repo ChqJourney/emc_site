@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import type { Reservation, Sevent, Station } from "../../biz/types";
+  import type { Reservation, Sevent, Station, User } from "../../biz/types";
   import { goto } from "$app/navigation";
   import type { PageData } from "../$types";
   import { calendar } from "../../biz/calendar";
@@ -19,11 +19,13 @@
   import { apiService } from "../../biz/apiService";
   import Avartar from "../../components/Avartar.svelte";
   import About from "../../components/About.svelte";
-  import { dayPageInit, submitReservation, handleReservationBlockClick, reservationBlockClickPrecheck } from "../../biz/operation";
+  import { dayPageInit, reservationBlockClickPrecheck } from "../../biz/operation";
+    import { submitReservation } from "../../biz/localService";
   let { data }: { data: PageData } = $props();
+  console.log("data:", data);
   const user = getGlobal("user");
   console.log(user);
-  const initDate = data.date ?? new Date().toISOString().split("T")[0];
+  const initDate = data.date;
   calendar.setDate(initDate);
   const selectedDate = $derived(calendar.selectedDate);
   async function loadStations(): Promise<Station[]> {
@@ -91,6 +93,7 @@
 
     try {
       reservations = await apiService.Get(`/reservations/${date}`);
+      console.log("reservations:", reservations);
       return reservations;
     } catch (e) {
       errorHandler.handleError(e as AppError);
@@ -167,6 +170,131 @@
     await apiService.logout();
     goto("/auth/login");
   }
+
+  /**
+ * 处理预约块点击事件
+ * @param reservation 当前预约信息（如果存在）
+ * @param station 工位信息
+ * @param selectedDateStr 选中的日期
+ */
+ const handleReservationBlockClick = (reservation: Reservation | null, station: Station, selectedDateStr: string,timeslot:string) => {
+    const user = getGlobal("user");
+    console.log('start')
+    // 1. 用户为游客（未登录）情况
+    if (!user) {
+      if (reservation) {
+        // 1.a 有预约，显示预约信息
+        showModal(ReservationInfo as any, { reservation });
+      } else {
+        // 1.b 没有预约，显示提示信息
+        errorHandler.showInfo("无预约");
+      }
+      return;
+    }
+  
+    // 2. 用户为管理员情况
+    if (user.role.toLowerCase() === 'admin') {
+      console.log('admin')
+      if (reservation) {
+        // 2.a 有预约，显示编辑表单
+        showModal(ReservationForm as any, {
+          item: reservation,
+          isSimpleMode: true,
+          submitHandler: async (modifiedReservation: Reservation, isCreate: boolean, user: User) => {
+            await submitReservation(modifiedReservation, false, user);
+            loadingIndicator++;
+          },
+          onNegative: () => {
+            hideModal();
+          }
+        });
+      } else {
+        // 2.b 没有预约，显示创建表单
+        showModal(ReservationForm as any, {
+          item: {
+            station_id: station.id,
+            reservation_date: selectedDateStr,
+            time_slot: timeslot,
+          } as Reservation,
+          isSimpleMode: true,
+          submitHandler: async (reservation: Reservation, isCreate: boolean, user: User) => {
+            await submitReservation(reservation, true, user);
+            loadingIndicator++;
+          },
+          onNegative: () => {
+            hideModal();
+          }
+        });
+      }
+      return;
+    }
+  
+    // 3. 用户为工程师情况
+    if (user.role.toLowerCase() === 'engineer') {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const reserveDate = new Date(selectedDateStr);
+      reserveDate.setHours(0, 0, 0, 0);
+      console.log("in engineer")
+      // 检查日期是否为今天或未来
+      const isCurrentOrFuture = reserveDate >= today;
+      
+      if (reservation) {
+        // 3.a 有预约
+        // 检查条件A：是否是当前用户的预约
+        const isOwnReservation = 
+          reservation.project_engineer === user.englishname || 
+          reservation.reservate_by === user.username;
+        
+        // 条件A和B都满足时，显示编辑表单
+        if (isCurrentOrFuture && isOwnReservation) {
+          showModal(ReservationForm as any, {
+            item: reservation,
+            isSimpleMode: true,
+            submitHandler: async (modifiedReservation: Reservation, isCreate: boolean, user: User) => {
+              await submitReservation(modifiedReservation, false, user);
+              loadingIndicator++;
+            },
+            onNegative: () => {
+              hideModal();
+            }
+          });
+        } else {
+          // 不满足条件，显示提示信息
+          if (!isCurrentOrFuture) {
+            errorHandler.showWarning("不能修改过去的预约");
+          } else if (!isOwnReservation) {
+            errorHandler.showWarning("只能修改自己创建的预约");
+          }
+          
+          // 仍然显示预约信息（只读）
+          showModal(ReservationInfo as any, { reservation });
+        }
+      } else {
+        // 3.b 没有预约
+        // 只检查条件B：时间是否为今天或未来
+        if (isCurrentOrFuture) {
+          showModal(ReservationForm as any, {
+            item: {
+              station_id: station.id,
+              reservation_date: selectedDateStr,
+              time_slot: timeslot,
+            } as Reservation,
+            isSimpleMode: true,
+            submitHandler: async (modifiedReservation: Reservation, isCreate: boolean, user: User) => {
+              await submitReservation(modifiedReservation, true, user); 
+              loadingIndicator++;
+            },
+            onNegative: () => {
+              hideModal();
+            }
+          });
+        } else {
+          errorHandler.showWarning("不能为过去的日期创建预约");
+        }
+      }
+    }
+  };
 </script>
 
 {#snippet showDayBlock(
@@ -214,7 +342,7 @@
           <button
             style="gap: 5px; display: flex; flex-direction: column; align-items: center; width: 100%;"
             class="tooltip-container"
-            onclick={() => handleReservationBlockClick(reservation, station, $selectedDate)}
+              onclick={() => handleReservationBlockClick(reservation, station, $selectedDate,timeslot)}
           >
             <span class={timeslot === "T5" ? "tooltip-top" : "tooltip"}
               >点击查看预约</span
@@ -289,7 +417,7 @@
           <button
             class="tooltip-container coffee-btn"
             aria-label="open_new"
-            onclick={() => handleReservationBlockClick(null, station, $selectedDate)}
+            onclick={() => handleReservationBlockClick(null, station, $selectedDate,timeslot)}
           >
             <span class={timeslot === "T5" ? "tooltip-top" : "tooltip"}
               >无预约</span
@@ -400,7 +528,9 @@
       <div class="dropdown-container tooltip-container">
         {#if localStorage.getItem("accessToken")}
           {@const user = getGlobal("user")}
-          <Avartar username={user?.username || ""} />
+          <button class="dropdown-trigger" onclick={() => goto("/auth/profile")} aria-label="profile">
+            <Avartar username={user?.username ?? ""} />
+          </button>
         {:else}
           <button class="dropdown-trigger" aria-label="menu">
             <svg
@@ -440,6 +570,10 @@
                 /></svg
               >
               设置
+            </button>
+            <button class="dropdown-item" onclick={() => goto("/admin")}>
+              <svg class="menu-icon" viewBox="0 0 24 24"><path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.07-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.74,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.07,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.44-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.47-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/></svg>
+              系统
             </button>
             <button class="dropdown-item" onclick={async () => await logout()}>
               <svg class="menu-icon" viewBox="0 0 24 24"
@@ -578,6 +712,7 @@
     opacity: 0;
     visibility: hidden;
     transition: all 0.3s ease;
+    z-index: 1000;
   }
   .tooltip-top {
     top: -35px;
@@ -593,6 +728,7 @@
     opacity: 0;
     visibility: hidden;
     transition: all 0.3s ease;
+    z-index: 1000;
   }
   /* 添加小三角形 */
   .tooltip::before {

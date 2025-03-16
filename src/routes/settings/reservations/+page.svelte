@@ -11,6 +11,8 @@
     import { apiService } from "../../../biz/apiService";
     import type{ Component } from "svelte";
     import { goto } from "$app/navigation";
+    import { deleteReservation } from "../../../biz/operation";
+    import { submitReservation } from "../../../biz/localService";
     let timeRangeForReservations = $state("month");
     let loadingIndicator = $state(0);
     let currentPage = $state(1);
@@ -44,6 +46,7 @@
         if(!user){
           errorHandler.showError("请先登录");
           goto("/auth/login");
+          return;
         }
         const stations=await apiService.Get("/stations");
         if(user.role.toLowerCase()==="admin"){
@@ -51,7 +54,7 @@
           console.log(reservations)
           return {reservations,stations}
         }else{
-          const reservations=await apiService.Get(`/reservations?timeRange=${timeRangeForReservations}&projectEngineer=${user.englishname}&createdBy=${user.username}&pageNumber=${pageNumber}&pageSize=${pageSize}`)
+          const reservations=await apiService.Get(`/reservations?timeRange=${timeRangeForReservations}&projectEngineer=${user.englishname}&reservatBy=${user.username}&pageNumber=${pageNumber}&pageSize=${pageSize}`)
           return {reservations,stations}
         }
       } catch (error) {
@@ -64,18 +67,20 @@
       reservation: Reservation,
       isCreate: boolean,
     ) {
-    //   await submitReservation(reservation, isCreate);
+      const user = getGlobal("user");
+      await submitReservation(reservation, isCreate,user.role??"user");
       loadingIndicator++;
     }
     async function handleReservationDelete(reservation: Reservation) {
-    //   await deleteReservation(reservation);
+      const user = getGlobal("user");
+      await deleteReservation(reservation,user);
       loadingIndicator++;
     }
     async function handleExportReservations() {
       const user = getGlobal("user");
       try {
       console.log(user)
-      const reservations=await apiService.Get(`/reservations?timeRange=${timeRangeForReservations}&projectEngineer=${user.englishname}&createdBy=${user.username}`)
+      const reservations=await apiService.Get(`/reservations?timeRange=${timeRangeForReservations}&projectEngineer=${user.englishname}&reservatBy=${user.username}`)
         await exportReservations(reservations);
         errorHandler.showInfo("导出成功");
       } catch (e) {
@@ -110,9 +115,9 @@
             <option value="year">本年</option>
             <option value="all">所有</option>
           </select>
-          {#if data.reservations.length > 0}
+          {#if data?.reservations?.items?.length > 0}
             <div class="data-count">
-              共 {data.reservations.items.length} 条数据
+              共 {data?.reservations?.items?.length} 条数据
             </div>
           {/if}
         </div>
@@ -157,7 +162,7 @@
       </div>
       <div class="table-container">
         <SortableTable
-          data={data.reservations.items}
+          data={data?.reservations?.items}
           columns={
             [
             {
@@ -194,7 +199,7 @@
               sortable: true,
               maxWidth: "100px",
               formatter: async (id: number) => {
-                const name = data.stations.find((station:Station) => station.id === id)?.name;
+                const name = data?.stations?.find((station:Station) => station.id === id)?.name;
                 return name || "Unknown station";
               },
             },
@@ -230,7 +235,7 @@
           pagination={true}
           onPageChange={handlePageChange}
           onPageSizeChange={handlePageSizeChange}
-          totalItems={data.reservations.totalCount}
+          totalItems={data?.reservations?.totalCount}
           pageSize={pageSize}
           currentPage={currentPage}
         />

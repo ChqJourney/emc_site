@@ -7,15 +7,15 @@ namespace emc_api.Repositories
     public interface IBizRepository
     {
         Task<IEnumerable<Reservation>> GetReservationsByDateAsync(string date);
-        Task<IEnumerable<Reservation>> GetReservationsByMonthAsync(string month, string projectEngineer = null);
-        Task<IEnumerable<Reservation>> GetReservationsByYearAsync(string year, string projectEngineer = null);
+        Task<IEnumerable<Reservation>> GetReservationsByMonthAsync(string month, string projectEngineer = null, string reservatBy = null);
+        Task<IEnumerable<Reservation>> GetReservationsByYearAsync(string year, string projectEngineer = null, string reservatBy = null);
         Task<IEnumerable<Reservation>> GetAllReservationsAsync(string timeRange, string? projectEngineer = null, string? createdBy = null);
         Task<PaginatedResult<Reservation>> GetPaginatedReservationsAsync(string timeRange, string? projectEngineer = null, string? createdBy = null, int pageNumber = 1, int pageSize = 10);
         Task<IEnumerable<Reservation>> GetReservationsByStationAndMonthAsync(int stationId, string month);
         Task<bool> GetStationStatusPerDateAndTimeslotAsync(int id, string date, string timeSlot);
         Task<IEnumerable<StationStatus>> GetStationStatusPerDateAsync(int id, string date);
-        Task<bool> CreateReservationAsync(Reservation reservation);
-        Task<int> CreateReservationsAsync(Reservation reservation);
+        Task<bool> CreateReservationAsync(ReservationDTO reservation);
+        Task<int> CreateReservationsAsync(ReservationDTO reservation);
         Task<bool> UpdateReservationAsync(Reservation reservation);
         Task<bool> DeleteReservationAsync(int id);
         

@@ -1,5 +1,4 @@
 using emc_api.Repositories;
-using Serilog;
 using System.Net;
 using System.Net.Sockets;
 using emc_api.Services;
@@ -10,18 +9,23 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 
+// 设置控制台输出编码为UTF-8
+Console.OutputEncoding = Encoding.UTF8;
+
 var builder = WebApplication.CreateBuilder(args);
 
-// Configure Serilog
-Log.Logger = new LoggerConfiguration()
-    .WriteTo.Async(a => a.Console())
-    .WriteTo.Async(a => a.File("logs/emc-.log", rollingInterval: RollingInterval.Day, outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {Message:lj}{NewLine}{Exception}"))
-    .CreateLogger();
-
-builder.Host.UseSerilog();
+// 添加自定义JsonLoggerService
+builder.Services.AddSingleton<ILoggerService, JsonLoggerService>();
 
 // Add services to the container.
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        // 配置全局JSON序列化选项，禁用Unicode转义
+        options.JsonSerializerOptions.WriteIndented = true;
+        options.JsonSerializerOptions.PropertyNameCaseInsensitive = true;
+        options.JsonSerializerOptions.Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping;
+    });
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 {
@@ -67,7 +71,6 @@ Console.WriteLine(dir);
 
 // Initialize database
 // Register repositories
-builder.Services.AddSingleton<ILoggerService, LoggerService>();
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IBizRepository, BizRepository>();
 var userDatabaseInitializer = new DatabaseInitializer(new SqliteConnection(userDbStr), "User");
@@ -94,7 +97,7 @@ builder.Services.AddAuthentication(options =>
         ValidateAudience = true,
         ValidateLifetime = true,
         ValidateIssuerSigningKey = true,
-        ClockSkew = TimeSpan.Zero
+        ClockSkew = TimeSpan.FromMinutes(1)
     };
 });
 
@@ -119,12 +122,16 @@ builder.WebHost.ConfigureKestrel(options =>
     options.Limits.RequestHeadersTimeout = TimeSpan.FromMinutes(1);
 });
 var app = builder.Build();
-// Add global exception handling middleware
+
+// 添加请求日志中间件 - 移动到管道最前面
+app.UseRequestLogging();
+
 // 配置静态文件和SPA fallback
 app.UseCors("AllowAll");
 app.UseDefaultFiles();
 app.UseStaticFiles();
 app.MapFallbackToFile("index.html");
+
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 app.UseAuthentication();
 app.UseAuthorization();
@@ -135,19 +142,18 @@ app.UseSwaggerUI(options =>
     options.RoutePrefix = "swagger";
 });
 
-// Enable CORS
-
-app.UseSerilogRequestLogging();
-
 
 // 获取局域网IP和server port，并写入portal.txt
 var hostEntry = Dns.GetHostEntry(Dns.GetHostName());
 var localIp = hostEntry.AddressList.FirstOrDefault(a => a.AddressFamily == AddressFamily.InterNetwork)?.ToString() ?? "127.0.0.1";
 var port = app.Urls.FirstOrDefault() is string url ? new Uri(url).Port : 5001;
 var portalUrl = $"http://{localIp}:{port}";
-var portalPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "portal.txt");
+var portalPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, $"{localIp}_{port}.txt");
 System.IO.File.WriteAllText(portalPath, portalUrl);
-Log.Logger.Information("Server will started at {PortalUrl}", portalUrl);
+
+// 获取日志服务实例并记录启动信息
+var loggerService = app.Services.GetRequiredService<ILoggerService>();
+await loggerService.LogInformationAsync($"服务器将在 {portalUrl} 启动");
 
 // 使用控制器路由
 app.MapControllers();

@@ -89,6 +89,7 @@
             
             <div class="links">
                 <a href="/auth/change-pwd">修改密码</a>
+                <a class="guest-link" href="/">游客浏览</a>
             </div>
         </form>
     </div>
@@ -182,13 +183,18 @@
     .links {
         margin-top: 1.5rem;
         text-align: center;
+        display: flex;
+        justify-content: space-between;
     }
 
     .links a {
         color: #4f46e5;
         text-decoration: none;
     }
-
+    .links .guest-link {
+        color: #39acbe;
+        text-decoration: none;
+    }
     .links a:hover {
         text-decoration: underline;
     }

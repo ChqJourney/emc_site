@@ -72,7 +72,8 @@ async function handleCopyStation(station:Station,isCreate:boolean){
         </button>
       </div>
     </div>
-      <SortableTable
+    <div class="table-container">
+    <SortableTable
         data={stations}
         columns={[
           { key: 'name', label: '名称', sortable: true,maxWidth:'120px'  },
@@ -129,6 +130,7 @@ async function handleCopyStation(station:Station,isCreate:boolean){
           loadingIndicator++;
         }}
       />
+    </div>
     {/await}
   </div>
 
@@ -182,4 +184,10 @@ async function handleCopyStation(station:Station,isCreate:boolean){
     transform: translateY(-1px);
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
   }
+  .table-container {
+      width: 100%;
+      height: 100%;
+      overflow-y: auto;
+      overflow-x: auto;
+    }
   </style>

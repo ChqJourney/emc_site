@@ -1,7 +1,8 @@
 <script lang="ts">
     import About from "../../../components/About.svelte";
     import { hideModal, showModal } from "../../../components/modalStore";
-
+    import { apiService } from "../../../biz/apiService";
+    import { goto } from "$app/navigation";
   
     let remote_source = $state("");
     let store: any = $state(null);
@@ -22,7 +23,26 @@
         <p>加载中...</p>
       {:then _}
         <h4>其他设置</h4>
-  
+        <div class="settings-card">
+          <h4 class="settings-title">日志</h4>
+          <div
+            class="settings-grid"
+            style="justify-content: space-between;align-items: center;"
+          >
+            <button class="about-btn" onclick={()=>goto("/admin/logs")}>查看日志</button>
+          </div>
+        </div>
+        <div class="settings-card">
+          <h4 class="settings-title">用户管理</h4>
+          <div
+            class="settings-grid"
+            style="justify-content: space-between;align-items: center;"
+          >
+            <button class="about-btn" onclick={async()=>{
+              goto("/auth/users");
+            }}>用户管理</button>
+          </div>
+        </div>
         
         <div class="settings-card">
           <h4 class="settings-title">关于</h4>

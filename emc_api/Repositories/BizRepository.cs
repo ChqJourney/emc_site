@@ -32,19 +32,25 @@ namespace emc_api.Repositories
             }
         }
 
-        public async Task<IEnumerable<Reservation>> GetReservationsByMonthAsync(string month, string projectEngineer = null)
+        public async Task<IEnumerable<Reservation>> GetReservationsByMonthAsync(string month, string projectEngineer = null, string reservatBy = null)
         {
             try
             {
                 var startDate = $"{month}-01";
                 var endDate = $"{month}-{DateTime.DaysInMonth(int.Parse(month.Split('-')[0]), int.Parse(month.Split('-')[1]))}";
-
-                var sql = projectEngineer == null
-                    ? "SELECT * FROM reservations WHERE reservation_date >= @StartDate AND reservation_date <= @EndDate ORDER BY reservation_date DESC"
-                    : "SELECT * FROM reservations WHERE reservation_date >= @StartDate AND reservation_date <= @EndDate AND project_engineer = @ProjectEngineer ORDER BY reservation_date DESC";
+                string sql;
+                if(projectEngineer == null && reservatBy == null){
+                    sql = "SELECT * FROM reservations WHERE reservation_date >= @StartDate AND reservation_date <= @EndDate ORDER BY reservation_date DESC";
+                }else if(projectEngineer == null){
+                    sql = "SELECT * FROM reservations WHERE reservation_date >= @StartDate AND reservation_date <= @EndDate AND reservate_by = @ReservateBy ORDER BY reservation_date DESC";
+                }else if(reservatBy == null){
+                    sql = "SELECT * FROM reservations WHERE reservation_date >= @StartDate AND reservation_date <= @EndDate AND project_engineer = @ProjectEngineer ORDER BY reservation_date DESC";
+                }else{
+                    sql = "SELECT * FROM reservations WHERE reservation_date >= @StartDate AND reservation_date <= @EndDate AND (project_engineer = @ProjectEngineer OR reservate_by = @ReservateBy) ORDER BY reservation_date DESC";
+                }
 
                 using var _connection = await CreateConnection();
-                return await _connection.QueryAsync<Reservation>(sql, new { StartDate = startDate, EndDate = endDate, ProjectEngineer = projectEngineer });
+                return await _connection.QueryAsync<Reservation>(sql, new { StartDate = startDate, EndDate = endDate, ProjectEngineer = projectEngineer, ReservateBy = reservatBy });
             }
             catch (Exception ex)
             {
@@ -53,18 +59,24 @@ namespace emc_api.Repositories
             }
         }
 
-        public async Task<IEnumerable<Reservation>> GetReservationsByYearAsync(string year, string projectEngineer = null)
+        public async Task<IEnumerable<Reservation>> GetReservationsByYearAsync(string year, string projectEngineer = null, string reservatBy = null)
         {
             try
             {
                 var startDate = $"{year}-01-01";
                 var endDate = $"{year}-12-31";
-
-                var sql = projectEngineer == null
-                    ? "SELECT * FROM reservations WHERE reservation_date >= @StartDate AND reservation_date <= @EndDate ORDER BY reservation_date DESC"
-                    : "SELECT * FROM reservations WHERE reservation_date >= @StartDate AND reservation_date <= @EndDate AND project_engineer = @ProjectEngineer ORDER BY reservation_date DESC";
+                string sql;
+                if(projectEngineer == null && reservatBy == null){
+                    sql = "SELECT * FROM reservations WHERE reservation_date >= @StartDate AND reservation_date <= @EndDate ORDER BY reservation_date DESC";
+                }else if(projectEngineer == null){
+                    sql = "SELECT * FROM reservations WHERE reservation_date >= @StartDate AND reservation_date <= @EndDate AND reservate_by = @ReservateBy ORDER BY reservation_date DESC";
+                }else if(reservatBy == null){
+                    sql = "SELECT * FROM reservations WHERE reservation_date >= @StartDate AND reservation_date <= @EndDate AND project_engineer = @ProjectEngineer ORDER BY reservation_date DESC";
+                }else{
+                    sql = "SELECT * FROM reservations WHERE reservation_date >= @StartDate AND reservation_date <= @EndDate AND (project_engineer = @ProjectEngineer OR reservate_by = @ReservateBy) ORDER BY reservation_date DESC";
+                }
                 using var _connection = await CreateConnection();
-                return await _connection.QueryAsync<Reservation>(sql, new { StartDate = startDate, EndDate = endDate, ProjectEngineer = projectEngineer });
+                return await _connection.QueryAsync<Reservation>(sql, new { StartDate = startDate, EndDate = endDate, ProjectEngineer = projectEngineer, ReservateBy = reservatBy });
             }
             catch (Exception ex)
             {
@@ -102,7 +114,7 @@ namespace emc_api.Repositories
                 throw;
             }
         }
-        public async Task<IEnumerable<Reservation>> GetAllReservationsAsync(string timeRange, string? projectEngineer = null, string? createdBy = null)
+        public async Task<IEnumerable<Reservation>> GetAllReservationsAsync(string timeRange, string? projectEngineer = null, string? reservatBy = null)
         {
             try
             {
@@ -111,30 +123,31 @@ namespace emc_api.Repositories
                 {
                     case "month":
                         var currentMonth = DateTime.Now.ToString("yyyy-MM");
-                        return await GetReservationsByMonthAsync(currentMonth, projectEngineer);
+                        return await GetReservationsByMonthAsync(currentMonth, projectEngineer, reservatBy);
                     case "year":
                         var currentYear = DateTime.Now.Year.ToString();
-                        return await GetReservationsByYearAsync(currentYear, projectEngineer);
+                        return await GetReservationsByYearAsync(currentYear, projectEngineer, reservatBy);
                     case "all":
-                        if (createdBy == null && projectEngineer == null)
+                        if (reservatBy == null && projectEngineer == null)
                         {
                             var sql = "SELECT * FROM reservations ORDER BY reservation_date DESC";
                             return await _connection.QueryAsync<Reservation>(sql);
                         }
-                        else if (createdBy == null)
+                        else if (reservatBy == null)
                         {
                             var sql = "SELECT * FROM reservations WHERE project_engineer = @ProjectEngineer ORDER BY reservation_date DESC";
                             return await _connection.QueryAsync<Reservation>(sql, new { ProjectEngineer = projectEngineer });
                         }
                         else if (projectEngineer == null)
                         {
-                            var sql = "SELECT * FROM reservations WHERE created_by = @CreatedBy ORDER BY reservation_date DESC";
-                            return await _connection.QueryAsync<Reservation>(sql, new { CreatedBy = createdBy });
+                            var sql = "SELECT * FROM reservations WHERE reservate_by = @ReservateBy ORDER BY reservation_date DESC";
+                            return await _connection.QueryAsync<Reservation>(sql, new { ReservateBy = reservatBy });
                         }
                         else
                         {
-                            var sql = "SELECT * FROM reservations WHERE project_engineer = @ProjectEngineer AND created_by = @CreatedBy ORDER BY reservation_date DESC";
-                            return await _connection.QueryAsync<Reservation>(sql, new { ProjectEngineer = projectEngineer, CreatedBy = createdBy });
+                            await _logger.LogWarningAsync($"timeRange: {timeRange}, projectEngineer: {projectEngineer}, reservatBy: {reservatBy}");
+                            var sql = "SELECT * FROM reservations WHERE (project_engineer = @ProjectEngineer OR reservate_by = @ReservateBy) ORDER BY reservation_date DESC";
+                            return await _connection.QueryAsync<Reservation>(sql, new { ProjectEngineer = projectEngineer, ReservateBy = reservatBy });
                         }
 
                     default:
@@ -148,7 +161,7 @@ namespace emc_api.Repositories
             }
         }
 
-        public async Task<bool> CreateReservationAsync(Reservation reservation)
+        public async Task<bool> CreateReservationAsync(ReservationDTO reservation)
         {
             try
             {
@@ -171,7 +184,7 @@ namespace emc_api.Repositories
                 throw;
             }
         }
-        public async Task<int> CreateReservationsAsync(Reservation reservation)
+        public async Task<int> CreateReservationsAsync(ReservationDTO reservation)
         {
             var sql = @"
 INSERT INTO reservations (
@@ -462,9 +475,11 @@ WHERE NOT EXISTS (
 
         public async Task<IEnumerable<Reservation>> GetReservationsByStationAndMonthAsync(int stationId, string month)
         {
-            var sql = "SELECT * FROM reservations WHERE station_id = @StationId AND MONTH(reservation_date) = @Month";
+            var startDate = $"{month}-01";
+            var endDate = $"{month}-{DateTime.DaysInMonth(int.Parse(month.Split('-')[0]), int.Parse(month.Split('-')[1]))}";    
+            var sql = "SELECT * FROM reservations WHERE station_id = @StationId AND reservation_date >= @StartDate AND reservation_date <= @EndDate";
             using var _connection = await CreateConnection();
-            var result = await _connection.QueryAsync<Reservation>(sql, new { StationId = stationId, Month = month });
+            var result = await _connection.QueryAsync<Reservation>(sql, new { StationId = stationId, StartDate = startDate, EndDate = endDate });
             return result ?? Enumerable.Empty<Reservation>();
         }
 
@@ -493,7 +508,7 @@ WHERE NOT EXISTS (
 
                 // 获取所有记录
                 var allReservations = await GetAllReservationsAsync(timeRange, projectEngineer, createdBy);
-                
+                await _logger.LogWarningAsync($"allReservations: {allReservations.Count()}");
                 // 创建分页结果
                 return PaginatedResult<Reservation>.Create(allReservations, pageNumber, pageSize);
             }

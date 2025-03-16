@@ -10,6 +10,7 @@
     let { children, data } = $props();
 </script>
 
+
 {@render children?.()}
 <Modal show={$modalStore.isShow} onNegative={()=>hideModal()} 
   item={{component:$modalStore.component,props:$modalStore.props}}/>
