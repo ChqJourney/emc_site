@@ -506,7 +506,7 @@ WHERE NOT EXISTS (
 
                 // 获取所有记录
                 var allReservations = await GetAllReservationsAsync(timeRange, projectEngineer, createdBy);
-                await _logger.LogWarningAsync($"allReservations: {allReservations.Count()}");
+                // await _logger.LogWarningAsync($"allReservations: {allReservations.Count()}");
                 // 创建分页结果
                 return PaginatedResult<Reservation>.Create(allReservations, pageNumber, pageSize);
             }

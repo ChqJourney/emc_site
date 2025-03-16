@@ -36,7 +36,7 @@ namespace emc_api.Controllers
                 
                 var user = await _userRepo.GetByUserNameAsync(request.username);
 
-                if (user == null || !BCrypt.Net.BCrypt.Verify(request.password, user.PasswordHash))
+                if (user == null || user.IsActive == false || !BCrypt.Net.BCrypt.Verify(request.password, user.PasswordHash))
                 {
                     await _loggerService.LogWarningAsync($"用户登录失败: {request.username} - 凭据无效");
                     return Unauthorized("Invalid credentials");
@@ -116,6 +116,10 @@ namespace emc_api.Controllers
                     return BadRequest("Invalid token");
                 }
                 var user = await _userRepo.GetByUserNameAsync(username);
+                if(user==null || user.IsActive == false){
+                    await _loggerService.LogWarningAsync($"刷新令牌失败: 用户 {username} 被锁定");
+                    return BadRequest("User is locked");
+                }
                 // _logger.LogInformation(user?.RefreshToken??"no refresh token in database");
                 // _logger.LogInformation(tokenModel.refreshToken);
                 // _logger.LogInformation(user?.RefreshTokenExpiryTime.ToString()??"no refresh token expiry time in database");
@@ -151,6 +155,21 @@ namespace emc_api.Controllers
             {
                 await _loggerService.LogErrorAsync($"刷新令牌时发生错误: {ex.Message}", ex);
                 return StatusCode(500, "刷新令牌时发生错误");
+            }
+        }
+        [Authorize(Roles = "Admin")]
+        [HttpPut("lock/{id}")]
+        public async Task<IActionResult> LockUser(int id,bool isLocked)
+        {
+            try
+            {
+                await _userRepo.LockUserAsync(id,isLocked);
+                return Ok();
+            }
+            catch (Exception ex)
+            {
+                await _loggerService.LogErrorAsync($"锁定用户时发生错误: {ex.Message}", ex);
+                return StatusCode(500, "锁定用户时发生错误");
             }
         }
         // [Authorize]

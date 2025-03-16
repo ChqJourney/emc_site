@@ -166,39 +166,61 @@ namespace emc_api.Services
                     // 同时输出到控制台
                     OutputToConsole(logEntry);
                     
-                    try
+                    int retryCount = 0;
+                    const int maxRetries = 3;
+                    const int retryDelayMs = 100;
+
+                    while (retryCount < maxRetries)
                     {
-                        List<LogEntry> entries = new List<LogEntry>();
-                        
-                        // 读取现有日志文件内容（如果存在）
-                        if (fileExists)
+                        try
                         {
-                            try
+                            List<LogEntry> entries = new List<LogEntry>();
+                            
+                            // 读取现有日志文件内容（如果存在）
+                            if (fileExists)
                             {
-                                string fileContent = await File.ReadAllTextAsync(fileName, Encoding.UTF8);
-                                if (!string.IsNullOrWhiteSpace(fileContent))
+                                try
                                 {
-                                    entries = JsonSerializer.Deserialize<List<LogEntry>>(fileContent, _jsonOptions) ?? new List<LogEntry>();
+                                    using (FileStream fs = new FileStream(fileName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                                    using (StreamReader sr = new StreamReader(fs, Encoding.UTF8))
+                                    {
+                                        string fileContent = await sr.ReadToEndAsync();
+                                        if (!string.IsNullOrWhiteSpace(fileContent))
+                                        {
+                                            entries = JsonSerializer.Deserialize<List<LogEntry>>(fileContent, _jsonOptions) ?? new List<LogEntry>();
+                                        }
+                                    }
+                                }
+                                catch (JsonException)
+                                {
+                                    entries = new List<LogEntry>();
+                                    await LogErrorToBackupFileAsync($"日志文件 {fileName} 格式错误，创建新的日志集合");
                                 }
                             }
-                            catch (JsonException)
+                            
+                            // 添加新日志条目
+                            entries.Add(logEntry);
+                            
+                            // 写回文件，使用FileShare.Read允许其他进程同时读取
+                            using (FileStream fs = new FileStream(fileName, FileMode.Create, FileAccess.Write, FileShare.Read))
+                            using (StreamWriter sw = new StreamWriter(fs, Encoding.UTF8))
                             {
-                                // 如果文件内容格式不正确，创建新的日志集合
-                                entries = new List<LogEntry>();
-                                await LogErrorToBackupFileAsync($"日志文件 {fileName} 格式错误，创建新的日志集合");
+                                await sw.WriteAsync(JsonSerializer.Serialize(entries, _jsonOptions));
                             }
+
+                            break; // 成功写入，跳出重试循环
                         }
-                        
-                        // 添加新日志条目
-                        entries.Add(logEntry);
-                        
-                        // 写回文件
-                        await File.WriteAllTextAsync(fileName, JsonSerializer.Serialize(entries, _jsonOptions), Encoding.UTF8);
-                    }
-                    catch (Exception ex)
-                    {
-                        // 处理写入日志文件时的异常，将异常写入备用日志文件
-                        await LogErrorToBackupFileAsync($"写入日志时出错: {ex.Message}\n{ex.StackTrace}");
+                        catch (IOException ex) when (retryCount < maxRetries - 1)
+                        {
+                            retryCount++;
+                            await Task.Delay(retryDelayMs * retryCount);
+                            continue;
+                        }
+                        catch (Exception ex)
+                        {
+                            await LogErrorToBackupFileAsync($"写入日志时出错: {ex.Message}\n{ex.StackTrace}");
+                            break;
+                        }
                     }
                     
                     await Task.Delay(1); // 避免CPU过度使用

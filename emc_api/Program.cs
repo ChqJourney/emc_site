@@ -150,9 +150,10 @@ app.UseSwaggerUI(options =>
 // 获取局域网IP和server port，并写入portal.txt
 var hostEntry = Dns.GetHostEntry(Dns.GetHostName());
 var localIp = hostEntry.AddressList.FirstOrDefault(a => a.AddressFamily == AddressFamily.InterNetwork)?.ToString() ?? "127.0.0.1";
-var port = app.Urls.FirstOrDefault() is string url ? new Uri(url).Port : 5001;
-var portalUrl = $"http://{localIp}:{port}";
-var portalPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, $"{localIp}_{port}.txt");
+var url = builder.Configuration.GetValue<string>("Kestrel:Endpoints:Http:Url");
+var port = url.Split(':').Last();
+var portalUrl = $"http://{localIp}:{(port=="80" ? "" : port)}";
+var portalPath = Path.Combine(builder.Configuration.GetValue<string>("data:dir"), $"{localIp}_{port}.txt");
 System.IO.File.WriteAllText(portalPath, portalUrl);
 
 // 获取日志服务实例并记录启动信息
@@ -163,4 +164,4 @@ await loggerService.LogInformationAsync($"服务器将在 {portalUrl} 启动");
 app.MapControllers();
 
 // Run the application
-app.Run("http://0.0.0.0:5001");
+app.Run();

@@ -10,5 +10,6 @@ public interface IUserRepository
     Task DisableUserAsync(int userId);
     Task EnableUserAsync(int userId);
     Task RemoveUserAsync(int userId);
+    Task LockUserAsync(int userId,bool isLocked);
     
 }

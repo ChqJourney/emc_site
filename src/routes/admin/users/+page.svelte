@@ -86,7 +86,7 @@
         const action = isLocked ? "解锁" : "锁定";
         if (confirm(`确定要${action}用户 ${username} 吗？`)) {
             try {
-                await apiService.put(`/auth/lock/${userId}`, {
+                await apiService.Put(`/auth/lock/${userId}`, {
                     isLocked: !isLocked,
                 });
                 await loadUsers();

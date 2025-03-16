@@ -78,5 +78,9 @@ public class UserRepository : BaseRepository, IUserRepository
         using var conn = await CreateConnection();
         await conn.ExecuteAsync("DELETE Users where id=@userId",new {userId});
     }
-
+    public async Task LockUserAsync(int userId,bool isLocked)
+    {
+        using var conn = await CreateConnection();
+        await conn.ExecuteAsync("UPDATE Users SET IsActive = @isLocked WHERE Id = @userId",new {userId,isLocked});
+    }
 }
