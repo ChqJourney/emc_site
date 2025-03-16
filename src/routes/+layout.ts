@@ -31,7 +31,8 @@ export async function load({ url }) {
     // 配置apiService, authEndpoints是认证端口，不需要header放token
     apiService.configure({
       baseURL: currentPort === "1420"
-        ? "http://localhost:5001/api" : `http://${currentHost}/api`,
+        ? `http://${currentHostname === 'localhost' ? 'localhost' : '192.168.0.100'}:5001/api`
+        : `http://${currentHost}/api`,
       timeout: 10000,
       authEndpoints: ['/auth/login', '/auth/refresh', '/auth/logout'],
       storage: {
