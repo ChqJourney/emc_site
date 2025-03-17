@@ -1,8 +1,15 @@
 <script lang="ts">
     import { apiService } from "../biz/apiService";
     import { hideModal } from "./modalStore";
+
+    interface Props {
+        userInfo?: any;
+        callback?: () => Promise<void>;
+    }
+
     let { userInfo, callback } = $props();
-    console.log(callback)
+    console.log(userInfo);
+    console.log(callback);
     let isNew = !userInfo;
     let newUser = $state(
         isNew
@@ -30,11 +37,13 @@
                 username: newUser.username,
                 machinename: newUser.machinename,
                 englishname: newUser.englishname,
-                team:newUser.team,
+                team: newUser.team,
                 role: newUser.role,
             });
+            if (callback) {
+                await callback();
+            }
             hideModal();
-            callback();
         } catch (error) {
             console.error("Failed to create user:", error);
         }

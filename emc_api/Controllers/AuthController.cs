@@ -79,7 +79,7 @@ namespace emc_api.Controllers
                 if (user == null)
                 {
                     await _loggerService.LogWarningAsync($"用户信息请求失败: 未找到用户 {username}");
-                    return NotFound($"未找到用户信息");
+                    return Unauthorized($"未找到用户信息");
                 }
                 
                 await _loggerService.LogInformationAsync($"用户信息已返回: {username}");
@@ -237,6 +237,7 @@ namespace emc_api.Controllers
                 return StatusCode(500, "获取用户列表时发生错误");
             }
         }
+        [Authorize(Roles = "Admin")]
         [HttpPost("create")]
         public async Task<IActionResult> Create(UserDto user)
         {

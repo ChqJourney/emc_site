@@ -216,6 +216,7 @@ class ApiService {
 
                         // 使用单例模式进行令牌刷新，避免多个请求同时刷新令牌
                         if (!this.isRefreshing) {
+                            console.log('dd3')
                             this.isRefreshing = true;
 
                             // 创建一个新的刷新Promise
@@ -223,7 +224,7 @@ class ApiService {
                                 try {
                                     console.log('开始刷新令牌...');
                                     const newToken = await this.refreshToken();
-
+                                    console.log('刷新令牌成功')
                                     // 执行所有等待的请求重试
                                     this.retryFailedRequests();
 
@@ -376,6 +377,7 @@ class ApiService {
             await this.refreshTokenPromise;
             return await this.axiosInstance(failedRequest);
         } catch (error) {
+            console.log('retryRequest')
             // 明确重新抛出错误，确保调用方能捕获
             throw error;
         }
@@ -515,7 +517,9 @@ class ApiService {
 
             // 等待现有刷新完成
             if (this.refreshTokenPromise) {
+                console.log('dd')
                 try {
+                    console.log('dd2')
                     return await this.refreshTokenPromise;
                 } catch (error) {
                     console.error('等待中的刷新令牌请求失败:', error);
@@ -527,6 +531,7 @@ class ApiService {
                 this.isRefreshing = false;
             }
         }
+        console.log('dd2')
 
         try {
             // 设置互斥锁

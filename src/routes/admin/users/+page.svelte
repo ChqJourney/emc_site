@@ -6,7 +6,7 @@
 
     let users: any = $state([]);
     let currentPage = $state(1);
-    let pageSize = $state(10);  
+    let pageSize = $state(10);
     let totalPages = $state(0);
     let loading = $state(false);
     let isDeleting = $state(false);
@@ -20,16 +20,15 @@
 
     // 加载用户列表
     async function loadUsers() {
-        users=[];
+        users = [];
         try {
             loading = true;
             const response = await apiService.list();
-            
+
             console.log(response);
-            if(!response) {
-               
-            }else{
-                users=response;
+            if (!response) {
+            } else {
+                users = response;
                 totalPages = Math.ceil(users.length / pageSize);
             }
         } catch (error) {
@@ -40,18 +39,18 @@
     }
 
     // 获取当前页的用户
-   
-    let paginatedUsers =$derived(users.length>0?users.slice(
-        (currentPage - 1) * pageSize,
-        currentPage * pageSize,
-    ):[]);
+
+    let paginatedUsers = $derived(
+        users.length > 0
+            ? users.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+            : [],
+    );
 
     // 重置用户密码
     async function resetPassword(username: string) {
         if (confirm(`确定要重置用户 ${username} 的密码吗？`)) {
             try {
-                await apiService.
-                Post(
+                await apiService.Post(
                     `/auth/reset-password?username=${username}`,
                 );
                 alert("密码重置成功");
@@ -106,7 +105,10 @@
         <button
             class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors"
             onclick={() =>
-                showModal(UserForm as unknown as Component<{}, {}, "">, { userInfo: undefined, callback: loadUsers })}
+                showModal(UserForm as unknown as Component<{}, {}, "">, {
+                    userInfo: undefined,
+                    callback: async () => await loadUsers(),
+                })}
         >
             添加用户
         </button>
@@ -145,7 +147,9 @@
                         >
                     </tr>
                 </thead>
-                <tbody class="bg-white divide-y font-normal text-sm text-gray-500 divide-gray-200">
+                <tbody
+                    class="bg-white divide-y font-normal text-sm text-gray-500 divide-gray-200"
+                >
                     {#each paginatedUsers as user}
                         <tr>
                             <td class="px-6 py-4 whitespace-nowrap"
@@ -192,7 +196,7 @@
                                         )}
                                     disabled={isDeleting}
                                 >
-                                    {user.isActive ?"锁定": "解锁"  }
+                                    {user.isActive ? "锁定" : "解锁"}
                                 </button>
                                 <button
                                     class="text-red-600 hover:text-red-800"

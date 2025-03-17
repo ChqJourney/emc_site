@@ -20,7 +20,7 @@ export default defineConfig(async () => ({
     host: true,
     hmr: {
       protocol: "ws",
-      host: "192.168.0.100",
+      host: "192.168.0.108",
       port: 1421,
       clientPort: 1421
     },

@@ -33,7 +33,7 @@ export async function load({ url }) {
       baseURL: currentPort === "1420"
         ? `http://${currentHostname === 'localhost' ? 'localhost' : '192.168.0.100'}:5001/api`
         : `http://${currentHost}/api`,
-      timeout: 10000,
+      timeout: 5000,
       authEndpoints: ['/auth/login', '/auth/refresh', '/auth/logout'],
       storage: {
         getItem: (key: string) => localStorage.getItem(key),

@@ -166,10 +166,10 @@
             console.log(user);
 
             // 使用完整对象替换而不是直接修改属性
-            currentReservation = {
-                ...currentReservation,
-                reservate_by: user?.username ?? "unknown",
-            };
+            // currentReservation = {
+            //     ...currentReservation,
+            //     reservate_by: user?.username ?? "unknown",
+            // };
 
             const project_engineers = getGlobal("project_engineers") || [];
             const test_engineers = getGlobal("testing_engineers") || [];

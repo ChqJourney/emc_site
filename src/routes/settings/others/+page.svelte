@@ -50,7 +50,7 @@
             class="settings-grid"
             style="justify-content: space-between;align-items: center;"
           >
-            <p class="settings-description">版本号：Engineer v20250228</p>
+            <p class="settings-description">Client v20250316</p>
             <button class="about-btn" onclick={showAbout}>Details</button>
           </div>
         </div>

@@ -105,7 +105,7 @@
     {:then data}
       <div class="header">
         <div class="title-group">
-          <h3>我的预约数据</h3>
+          <h3>预约数据</h3>
           <select
             bind:value={timeRangeForReservations}
             class="time-range-select"
@@ -247,6 +247,14 @@
   </div>
   
   <style>
+    .button-group span{
+      display: none;
+    }
+    @media screen and (min-width: 768px) {
+      .button-group span{
+        display: block;
+      }
+    }
     .reservation-container {
       width: 100%;
       height: calc(100vh - 140px);
@@ -303,7 +311,7 @@
 
     .title-group h3 {
       margin: 0;
-      font-size: 18px;
+      font-size: 16px;
       font-weight: 600;
       color: #333;
     }

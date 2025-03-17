@@ -76,7 +76,7 @@ public class UserRepository : BaseRepository, IUserRepository
     public async Task RemoveUserAsync(int userId)
     {
         using var conn = await CreateConnection();
-        await conn.ExecuteAsync("DELETE Users where id=@userId",new {userId});
+        await conn.ExecuteAsync("DELETE FROM Users where id=@userId",new {userId});
     }
     public async Task LockUserAsync(int userId,bool isLocked)
     {

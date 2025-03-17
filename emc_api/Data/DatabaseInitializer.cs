@@ -32,7 +32,7 @@ namespace emc_api.Data
     FullName VARCHAR(100),
     MachineName VARCHAR(50),
     Team VARCHAR(50),
-    Role VARCHAR(20) NOT NULL CHECK(Role IN ('Engineer', 'Admin', 'Manager')) DEFAULT 'User',
+    Role VARCHAR(20) NOT NULL CHECK(Role IN ('Engineer', 'Admin', 'Manager','User')) DEFAULT 'User',
     PasswordHash CHAR(60) NOT NULL, -- BCrypt哈希固定长度60
     RefreshToken CHAR(88), -- JWT Refresh Token标准长度
     RefreshTokenExpiryTime number NOT NULL DEFAULT 0, -- JWT Refresh Token过期时间

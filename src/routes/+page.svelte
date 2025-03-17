@@ -590,12 +590,13 @@
       overflow: auto;
     }
     .fixed-header {
-      max-width: 800px;
+      max-width: 1600px;
       margin: 0 auto;
       left: 50%;
       transform: translateX(-50%);
       width: 100%;
     }
+   
 
     .month-nav button {
       background: none;

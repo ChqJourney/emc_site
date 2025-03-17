@@ -222,8 +222,8 @@
   }
   
   .return-button {
-    width: 40px;
-    height: 40px;
+    width: 30px;
+    height: 30px;
     box-shadow: 0 0 10px 0 rgba(0, 0, 0, 0.1);
     display: flex;
     align-items: center;
@@ -231,12 +231,25 @@
     border-radius: 50%;
     margin-right: 15px;
   }
+  .return-button svg{
+    width: 20px;
+    height: 20px;
+  }
   
   .return-button:hover {
     box-shadow: 0 0 10px 0 rgba(0, 0, 0, 0.2);
-    background-color: #666;
+    background-color: #ccce51;
   }
-  
+  @media screen and (min-width: 768px) {
+    .return-button {
+      width: 40px;
+      height: 40px;
+    }
+    .return-button svg{
+      width: 20px;
+      height: 20px;
+    }
+  }
   .content {
     width: 100%;
     height: 100%;
