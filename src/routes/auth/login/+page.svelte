@@ -35,9 +35,7 @@
             console.error('登录失败:', error);
             errorMessage = '登录失败：用户名或密码错误'; // 设置错误提示
             // 可根据不同错误类型显示不同提示
-            if (axios.isAxiosError(error)) {
-                errorMessage = error.response?.data?.message || '服务器连接异常';
-            }
+            
         } finally {
             isLoading = false;
         }

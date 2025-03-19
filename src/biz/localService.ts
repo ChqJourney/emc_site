@@ -42,8 +42,12 @@ function fillEmptyReservationFields(reservation: Partial<ReservationDTO>): Reser
       }
       
       if (isCreate) {
+        console.log("iscreate")
         const filledReservation = fillEmptyReservationFields(reservation);
-        await createReservation(filledReservation, user);
+        filledReservation.reservate_by=user.username
+        console.log(filledReservation)
+        const response=await createReservation(filledReservation, user);
+        console.log(response)
         errorHandler.showInfo("创建成功");
       } else {
         await updateReservation(reservation, user);

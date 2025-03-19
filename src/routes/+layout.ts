@@ -23,16 +23,16 @@ export async function load({ url }) {
     const currentHost = window.location.host; // 包含主机名和端口
     const currentHostname = window.location.hostname; // 仅主机名（IP或域名）
     const currentPort = window.location.port;
-    // console.log(`Current URL: ${currentUrl}`);
-    // console.log(`Current Host: ${currentHost}`);
-    // console.log(`Current Hostname: ${currentHostname}`);
-    // console.log(`Current Port: ${currentPort}`);
+    console.log(`Current URL: ${currentUrl}`);
+    console.log(`Current Host: ${currentHost}`);
+    console.log(`Current Hostname: ${currentHostname}`);
+    console.log(`Current Port: ${currentPort}`);
     
     // 配置apiService, authEndpoints是认证端口，不需要header放token
     apiService.configure({
-      baseURL: currentPort === "1420"
-        ? `http://${currentHostname === 'localhost' ? 'localhost' : '192.168.0.100'}:5001/api`
-        : `http://${currentHost}/api`,
+      baseURL: currentUrl.includes("localhost")
+        ? `http://localhost:5001/api`
+        : `http://${currentHostname}:5001/api`,
       timeout: 5000,
       authEndpoints: ['/auth/login', '/auth/refresh', '/auth/logout'],
       storage: {
@@ -44,6 +44,9 @@ export async function load({ url }) {
         goto('/auth/login');
       }
     });
+    console.log(currentUrl.includes("localhost")
+    ? `http://localhost:5001/api`
+    : `http://${currentHostname}:5001/api`)
 
     // 认证检查
     if (!isPublicRoute(url.pathname)) {

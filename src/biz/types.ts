@@ -84,9 +84,9 @@ export interface TestDTO{
     sequence_no:number;
 }
 export interface User{
-    machine:string;
-    user:string;
-    isAuthenticated?:string;
+    username:string;
+    englishname:string;
+    role:string;
 }
 export interface Config{
     high_load:number;

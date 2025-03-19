@@ -54,7 +54,8 @@
           console.log(reservations)
           return {reservations,stations}
         }else{
-          const reservations=await apiService.Get(`/reservations?timeRange=${timeRangeForReservations}&projectEngineer=${user.englishname}&reservatBy=${user.username}&pageNumber=${pageNumber}&pageSize=${pageSize}`)
+          const reservations=await apiService.Get(`/reservations?timeRange=${timeRangeForReservations}&projectEngineer=${user.englishname}&reservateBy=${user.username}&pageNumber=${pageNumber}&pageSize=${pageSize}`)
+          console.log(reservations)
           return {reservations,stations}
         }
       } catch (error) {
@@ -80,13 +81,30 @@
       const user = getGlobal("user");
       try {
       console.log(user)
-      const reservations=await apiService.Get(`/reservations?timeRange=${timeRangeForReservations}&projectEngineer=${user.englishname}&reservatBy=${user.username}`)
-        await exportReservations(reservations);
-        errorHandler.showInfo("导出成功");
+      let xlxsBuffer:Uint8Array;
+      if(user.role.toLowerCase()==="admin"){
+        const reservations=await apiService.Get(`/reservations?timeRange=${timeRangeForReservations}`)
+        xlxsBuffer=await exportReservations(reservations);
+      }else{
+        console.log(user.englishname,user.username)
+        const reservations=await apiService.Get(`/reservations?timeRange=${timeRangeForReservations}&projectEngineer=${user.englishname}&reservateBy=${user.username}`)
+        xlxsBuffer=await exportReservations(reservations);
+      }
+      const blob = new Blob([xlxsBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `预约数据_${formatDate(new Date())}.xlsx`;
+      a.click();
+      errorHandler.showInfo("导出成功");
       } catch (e) {
         errorHandler.handleError(e as AppError);
       }
     }
+    // 格式化日期为 YYYY-MM-DD 格式
+function formatDate(date: Date): string {
+  return date.toISOString().split('T')[0];
+}
     function handlePageChange(page: number) {
       currentPage = page;
     }

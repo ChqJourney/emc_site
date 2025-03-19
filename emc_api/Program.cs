@@ -51,15 +51,10 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAll", builder =>
     {
-        builder.WithOrigins(
-                "http://localhost:1420",
-                "http://192.168.0.100:1420",
-                "http://192.168.1.100:1420"
-            )
+        builder.AllowAnyOrigin()
             .AllowAnyMethod()
             .AllowAnyHeader()
             .WithExposedHeaders("Authorization")
-            .AllowCredentials()
             .SetPreflightMaxAge(TimeSpan.FromMinutes(10)); // 缓存预检请求结果
     });
 });

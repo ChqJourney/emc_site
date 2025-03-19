@@ -491,7 +491,7 @@
     left: 0;
     right: 0;
     background-color: #f8f9fa;
-    z-index: 1000;
+    z-index: 100;
     padding: 1.2rem;
     display: flex;
     justify-content: space-between;
@@ -506,7 +506,7 @@
     left: 0;
     right: 0;
     height: 72px;
-    background-color: #f8f9fa;
+    background-color: transparent;
     z-index: -1;
   }
 
@@ -693,7 +693,7 @@
   }
 
   .calendar {
-    width: min(95vw, 800px);
+    width: min(95vw, 1000px);
     aspect-ratio: 7/6;
     max-height: 95%;
     background-color: white;

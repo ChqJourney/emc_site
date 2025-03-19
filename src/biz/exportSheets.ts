@@ -3,7 +3,7 @@ import type { Station, Reservation, Visiting } from '../biz/types';
 import { save } from '@tauri-apps/plugin-dialog';
 import { writeFile, BaseDirectory } from '@tauri-apps/plugin-fs';
 import { AppError, ErrorCode } from '../biz/errors';
-import { invoke } from '@tauri-apps/api/core';
+import { apiService } from './apiService';
 
 // 导出工位数据
 export async function exportStations(stations: Station[]) {
@@ -52,14 +52,13 @@ export async function exportStations(stations: Station[]) {
 }
 
 // 导出预约数据
-export async function exportReservations(reservations: Reservation[]) {
+export async function exportReservations(reservations: Reservation[]): Promise<Uint8Array> {
   try{
-
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet('预约列表');
-    
+    console.log(reservations)
     // 获取所有工位信息用于映射ID到名称
-    const stations = await invoke<Station[]>("get_all_stations");
+    const stations = await apiService.Get<Station[]>("/stations");
     const stationMap = new Map(stations.map(s => [s.id, s.name]));
     const timeSlotMap = new Map();
     timeSlotMap.set('T1',2.5);
@@ -97,20 +96,8 @@ export async function exportReservations(reservations: Reservation[]) {
     
     // 生成buffer
     const buffer = await workbook.xlsx.writeBuffer();
-    
-    // 使用Tauri的对话框选择保存位置
-    const filePath = await save({
-      filters: [{
-        name: 'Excel',
-        extensions: ['xlsx']
-      }],
-      defaultPath: `预约数据_${formatDate(new Date())}.xlsx`
-    });
-    
-    if (filePath) {
-      // 保存文件
-      await writeFile(filePath, new Uint8Array(buffer), { baseDir: BaseDirectory.Desktop });
-    }
+    return new Uint8Array(buffer);
+
   }catch(e){
     throw new AppError(
       ErrorCode.ExportExcelFileError,

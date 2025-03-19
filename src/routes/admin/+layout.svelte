@@ -9,14 +9,11 @@
     let { children } = $props();
     let activeTab = $state("users"); // stations,reservations,visits, 或 system
   
-    function goHome() {
-      goto("/");
-    }
     $effect(()=>{
       console.log(activeTab)
       switch(activeTab){
         case "logs":
-          goto("/admin/logs");
+          goto("/admin/logger");
           break;
         case "users":
           goto("/admin/users");

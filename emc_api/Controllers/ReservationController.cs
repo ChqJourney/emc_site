@@ -146,13 +146,13 @@ namespace emc_api.Controllers
         */
         [Authorize(Roles = "Admin,Engineer")]
         [HttpGet]
-        public async Task<IActionResult> GetAll([FromQuery] string timeRange, [FromQuery] string? projectEngineer, [FromQuery] string? reservatBy,
+        public async Task<IActionResult> GetAll([FromQuery] string timeRange, [FromQuery] string? projectEngineer, [FromQuery] string? reservateBy,
             [FromQuery] int? pageNumber = null, [FromQuery] int? pageSize = null)
         {
             try
             {
                 var username = User.Identity?.Name;
-                await _logger.LogInformationAsync($"用户 {username} 获取预约列表，时间范围: {timeRange}，工程师: {projectEngineer ?? "无"}，预约人: {reservatBy ?? "无"}，分页: {(pageNumber.HasValue ? $"{pageNumber}/{pageSize}" : "无")}");
+                await _logger.LogInformationAsync($"用户 {username} 获取预约列表，时间范围: {timeRange}，工程师: {projectEngineer ?? "无"}，预约人: {reservateBy ?? "无"}，分页: {(pageNumber.HasValue ? $"{pageNumber}/{pageSize}" : "无")}");
                 
                 // 验证时间范围参数是否有效
                 if (string.IsNullOrWhiteSpace(timeRange))
@@ -178,7 +178,7 @@ namespace emc_api.Controllers
                     }
                     
                     var paginatedResult = await _repository.GetPaginatedReservationsAsync(
-                        timeRange, projectEngineer, reservatBy, pageNumber.Value, pageSize.Value);
+                        timeRange, projectEngineer, reservateBy, pageNumber.Value, pageSize.Value);
                     
                     await _logger.LogInformationAsync($"返回分页预约列表成功，页码: {pageNumber.Value}，页大小: {pageSize.Value}，共 {paginatedResult.TotalCount} 条");
                     
@@ -186,7 +186,7 @@ namespace emc_api.Controllers
                 }
                 
                 // 否则返回所有数据
-                var result = await _repository.GetAllReservationsAsync(timeRange, projectEngineer, reservatBy);
+                var result = await _repository.GetAllReservationsAsync(timeRange, projectEngineer, reservateBy);
                 
                 await _logger.LogInformationAsync($"返回所有预约列表成功，共 {result.Count()} 条");
                 

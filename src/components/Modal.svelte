@@ -110,7 +110,7 @@
         height: 90%;
         background: white;
         border-radius: 8px;
-        z-index: 1000;
+        z-index: 10000;
         overflow: hidden;
         opacity: 0;
         transition: all 0.4s cubic-bezier(0.19, 1, 0.22, 1);

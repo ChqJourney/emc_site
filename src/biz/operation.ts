@@ -112,7 +112,7 @@ export const settingPageInit = async () => {
  */
 export const createReservation = async (reservation: Reservation,user:User) => {  
   const userRole = user.role.toLowerCase();
-  
+  console.log(reservation,user)
   // 管理员有全部权限
   if (userRole === "admin") {
     return await apiService.Post(`/reservations`, reservation);
@@ -122,9 +122,11 @@ export const createReservation = async (reservation: Reservation,user:User) => {
   if (userRole === "engineer") {
     const isOwner = reservation.reservate_by === user.username;
     const isProjectEngineer = reservation.project_engineer === user.englishname;
-    
+    console.log(isOwner,isProjectEngineer)
     if (isOwner || isProjectEngineer) {
+      console.log("create begin")
       return await apiService.Post(`/reservations`, reservation);
+
     }
   }
 }
@@ -145,7 +147,7 @@ export const updateReservation = async (reservation: Reservation, user: User) =>
   if (userRole === "engineer") {
     const isOwner = reservation.reservate_by === user.username;
     const isProjectEngineer = reservation.project_engineer === user.englishname;
-    
+    console.log(isOwner,isProjectEngineer)
     if (isOwner || isProjectEngineer) {
       return await apiService.Put(`/reservations`, reservation);
     }
